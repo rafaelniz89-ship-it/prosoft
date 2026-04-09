@@ -188,11 +188,11 @@ app.get('/api/software', requireAuth, (req, res) => {
 // Get usage stats (admin)
 app.get('/api/stats', requireAdmin, async (req, res) => {
   const users = await pool.query('SELECT COUNT(*) as total FROM users WHERE NOT is_admin');
-  const usage = await pool.query(\`
+  const usage = await pool.query(`
     SELECT SUM(runs_total - runs_remaining) as total_runs_used,
            SUM(runs_remaining) as total_runs_remaining
     FROM users WHERE NOT is_admin
-  \`);
+  `);
   res.json({
     total_users: users.rows[0].total,
     total_runs_used: usage.rows[0].total_runs_used || 0,
@@ -202,7 +202,7 @@ app.get('/api/stats', requireAdmin, async (req, res) => {
 
 // Initialize database
 async function initDB() {
-  await pool.query(\`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username VARCHAR(50) UNIQUE NOT NULL,
@@ -213,7 +213,7 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT NOW(),
       last_login TIMESTAMP
     )
-  \`);
+  `);
   
   // Create admin if not exists
   const adminExists = await pool.query('SELECT id FROM users WHERE is_admin = true');
@@ -230,6 +230,6 @@ async function initDB() {
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(\`ProSoft running on port \${PORT}\`);
+    console.log(`ProSoft running on port \${PORT}`);
   });
 });
