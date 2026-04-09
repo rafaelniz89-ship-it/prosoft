@@ -5,6 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Panel - ProSoft</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .admin-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .admin-card {
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border);
+    }
+    .admin-card h3 {
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 100px auto;
+      gap: 12px;
+      align-items: end;
+    }
+    .form-grid input {
+      width: 100%;
+    }
+    .stat-big {
+      font-size: 48px;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    .user-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    .btn-danger {
+      background: var(--red);
+    }
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+    .btn-edit {
+      background: var(--blue);
+    }
+    .btn-runs {
+      background: var(--green);
+    }
+    .logout-admin {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    table { width: 100%; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--accent); font-weight: 600; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -14,53 +73,56 @@
         <h1>Admin Panel</h1>
         <div class="subtitle">ProSoft Management</div>
       </div>
-      <a href="/dashboard.html" style="color: var(--accent); text-decoration: none; margin-left: auto;">← Back to Dashboard</a>
+      <div style="display: flex; gap: 12px; margin-left: auto;">
+        <a href="/dashboard.html" class="btn" style="text-decoration: none;">👤 View Dashboard</a>
+        <button class="btn logout-admin" onclick="logout()">Logout</button>
+      </div>
     </header>
 
     <!-- Stats -->
-    <div class="admin-section">
-      <h3>Platform Statistics</h3>
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-card">
-          <div class="value" id="statUsers">--</div>
-          <div class="label">Total Users</div>
-        </div>
-        <div class="stat-card">
-          <div class="value" id="statRunsUsed">--</div>
-          <div class="label">Runs Used</div>
-        </div>
-        <div class="stat-card">
-          <div class="value" id="statRunsRemaining">--</div>
-          <div class="label">Runs Remaining</div>
-        </div>
+    <div class="admin-grid">
+      <div class="admin-card">
+        <h3>📊 Total Users</h3>
+        <div class="stat-big" id="statUsers">--</div>
+      </div>
+      <div class="admin-card">
+        <h3>⚡ Total Runs Used</h3>
+        <div class="stat-big" id="statRunsUsed">--</div>
+      </div>
+      <div class="admin-card">
+        <h3>🎯 Runs Remaining</h3>
+        <div class="stat-big" id="statRunsRemaining">--</div>
+      </div>
+      <div class="admin-card">
+        <h3>👥 Active Users</h3>
+        <div class="stat-big" id="statActive">--</div>
       </div>
     </div>
 
-    <!-- Upload Software -->
-    <div class="admin-section">
-      <h3>Upload / Update Software</h3>
-      <form id="uploadForm" enctype="multipart/form-data">
-        <div style="display: flex; gap: 12px; align-items: center;">
-          <input type="file" name="file" accept=".html" required style="flex: 1;">
-          <button type="submit" class="btn" style="width: auto; padding: 12px 24px;">Upload</button>
+    <!-- Add User -->
+    <div class="admin-card" style="margin-bottom: 24px;">
+      <h3>➕ Add New User</h3>
+      <form id="addUserForm" class="form-grid">
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted);">Username</label>
+          <input type="text" name="username" placeholder="Username" required>
         </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted);">Password</label>
+          <input type="password" name="password" placeholder="Password" required>
+        </div>
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 12px; color: var(--muted);">Runs</label>
+          <input type="number" name="runs" value="20" min="0" required>
+        </div>
+        <button type="submit" class="btn" style="width: auto;">Add User</button>
       </form>
-      <div id="uploadStatus" style="margin-top: 12px;"></div>
+      <div id="addStatus" style="margin-top: 12px;"></div>
     </div>
 
     <!-- User Management -->
-    <div class="admin-section">
-      <h3>User Management</h3>
-      
-      <div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
-        <form id="addUserForm" style="display: flex; gap: 8px; flex: 1;">
-          <input type="text" name="username" placeholder="Username" required style="flex: 1;">
-          <input type="password" name="password" placeholder="Password" required>
-          <input type="number" name="runs" placeholder="Runs" value="20" required style="width: 100px;">
-          <button type="submit" class="btn" style="width: auto; padding: 12px 20px;">Add User</button>
-        </form>
-      </div>
-
+    <div class="admin-card">
+      <h3>👥 User Management</h3>
       <table>
         <thead>
           <tr>
@@ -77,6 +139,18 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Upload Software -->
+    <div class="admin-card" style="margin-top: 24px;">
+      <h3>📤 Upload Software</h3>
+      <form id="uploadForm" style="display: flex; gap: 12px; align-items: end;">
+        <div style="flex: 1;">
+          <input type="file" name="file" accept=".html" required style="width: 100%;">
+        </div>
+        <button type="submit" class="btn" style="width: auto; padding: 12px 24px;">Upload</button>
+      </form>
+      <div id="uploadStatus" style="margin-top: 12px;"></div>
+    </div>
   </div>
 
   <!-- Edit Runs Modal -->
@@ -85,6 +159,10 @@
       <h2>Edit User Runs</h2>
       <form id="editRunsForm">
         <input type="hidden" id="editUserId">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="editUsername" disabled>
+        </div>
         <div class="form-group">
           <label>New Runs Remaining</label>
           <input type="number" id="editRunsInput" min="0" required>
@@ -103,7 +181,7 @@
       const data = await res.json();
       
       if (!data.loggedIn || !data.is_admin) {
-        window.location.href = '/dashboard.html';
+        window.location.href = '/login.html';
         return;
       }
       
@@ -118,6 +196,7 @@
       document.getElementById('statUsers').textContent = stats.total_users || 0;
       document.getElementById('statRunsUsed').textContent = stats.total_runs_used || 0;
       document.getElementById('statRunsRemaining').textContent = stats.total_runs_remaining || 0;
+      document.getElementById('statActive').textContent = stats.total_users || 0;
     }
 
     async function loadUsers() {
@@ -138,12 +217,9 @@
           <td>\${u.runs_total - u.runs_remaining}</td>
           <td class="\${u.runs_remaining === 0 ? 'text-red' : u.runs_remaining <= 5 ? 'text-orange' : 'text-green'}">\${u.runs_remaining}</td>
           <td>\${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}</td>
-          <td class="actions">
-            \${!u.is_admin ? \`
-              <button class="edit-btn" onclick="editRuns(\${u.id}, \${u.runs_remaining})">Edit Runs</button>
-              <button class="add-runs-btn" onclick="addRuns(\${u.id})">+5 Runs</button>
-              <button class="delete-btn" onclick="deleteUser(\${u.id})">Delete</button>
-            \` : ''}
+          <td class="user-actions">
+            <button class="btn btn-runs btn-sm" onclick="editRuns(\${u.id}, '\${u.username}', \${u.runs_remaining})">✏️ Edit Runs</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteUser(\${u.id}, '\${u.username}')">🗑️ Delete</button>
           </td>
         </tr>
       \`).join('');
@@ -154,6 +230,10 @@
       e.preventDefault();
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData);
+      const statusEl = document.getElementById('addStatus');
+      
+      statusEl.textContent = 'Adding...';
+      statusEl.style.color = 'var(--muted)';
       
       try {
         const res = await fetch('/api/users', {
@@ -163,15 +243,20 @@
         });
         
         if (res.ok) {
+          statusEl.textContent = '✓ User added successfully!';
+          statusEl.style.color = 'var(--green)';
           e.target.reset();
+          e.target.querySelector('input[name="runs"]').value = 20;
           loadUsers();
           loadStats();
         } else {
           const err = await res.json();
-          alert(err.error || 'Failed to add user');
+          statusEl.textContent = '✗ ' + (err.error || 'Failed to add user');
+          statusEl.style.color = 'var(--red)';
         }
       } catch (err) {
-        alert('Error adding user');
+        statusEl.textContent = '✗ Connection error';
+        statusEl.style.color = 'var(--red)';
       }
     });
 
@@ -206,8 +291,9 @@
       }
     });
 
-    function editRuns(id, currentRuns) {
+    function editRuns(id, username, currentRuns) {
       document.getElementById('editUserId').value = id;
+      document.getElementById('editUsername').value = username;
       document.getElementById('editRunsInput').value = currentRuns;
       document.getElementById('editRunsModal').classList.add('active');
     }
@@ -236,19 +322,8 @@
       }
     });
 
-    async function addRuns(id) {
-      const res = await fetch('/api/users/' + id + '/runs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runs_extra: 5 })
-      });
-      
-      // Get current runs from table and add 5
-      loadUsers();
-    }
-
-    async function deleteUser(id) {
-      if (!confirm('Are you sure you want to delete this user?')) return;
+    async function deleteUser(id, username) {
+      if (!confirm('Are you sure you want to delete user "' + username + '"?')) return;
       
       const res = await fetch('/api/users/' + id, { method: 'DELETE' });
       if (res.ok) {
@@ -257,6 +332,11 @@
       } else {
         alert('Failed to delete user');
       }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login.html';
     }
 
     checkAdmin();

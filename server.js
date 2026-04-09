@@ -78,20 +78,20 @@ app.get('/api/user', (req, res) => {
 });
 
 // Login
-app.post('/api/login', (req, res, next) => {
+app.post('/api/auth/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) return res.status(500).json({ error: err.message });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     req.logIn(user, (err) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ success: true, redirect: '/dashboard.html' });
+      res.json({ success: true, is_admin: user.is_admin });
     });
   })(req, res, next);
 });
 
 // Logout
-app.get('/api/logout', (req, res) => {
-  req.logout(() => res.redirect('/login.html'));
+app.post('/api/auth/logout', (req, res) => {
+  req.logout(() => res.json({ success: true }));
 });
 
 // Register (admin only)

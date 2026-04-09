@@ -5,6 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - ProSoft</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .software-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .software-card {
+      background: var(--surface2);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      text-align: center;
+    }
+    .software-card h3 {
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+    .software-card p {
+      color: var(--muted);
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .software-card .btn {
+      width: 100%;
+    }
+    .logout-admin {
+      background: var(--accent);
+      color: var(--bg);
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -14,25 +44,39 @@
         <h1>ProSoft</h1>
         <div class="subtitle">Software Platform</div>
       </div>
+      <button class="btn logout-admin" onclick="logout()" style="margin-left: auto;">Logout</button>
     </header>
 
     <div class="dashboard-header">
       <h2>Welcome, <span id="username">...</span></h2>
-      <button class="btn btn-secondary" onclick="logout()">Logout</button>
-    </div>
-
-    <div class="runs-display">
-      <div class="runs-number" id="runsRemaining">--</div>
-      <div>
-        <div class="runs-label">Runs Remaining</div>
-        <div class="runs-label" id="runsTotal" style="color: var(--muted); font-size: 12px;"></div>
+      <div class="runs-display">
+        <div class="runs-number" id="runsRemaining">--</div>
+        <div>
+          <div class="runs-label">Runs Remaining</div>
+          <div class="runs-label" id="runsTotal" style="color: var(--muted); font-size: 12px;"></div>
+        </div>
       </div>
-      <div id="runsStatus" style="margin-left: auto;"></div>
     </div>
 
     <h3 style="margin-bottom: 20px;">Available Software</h3>
-    <div class="software-grid" id="softwareGrid">
-      <!-- Software cards loaded dynamically -->
+    <div class="software-grid">
+      <!-- Bank File Builder -->
+      <div class="software-card">
+        <h3>🏦 Bank File Builder</h3>
+        <p>Generate bank reconciliation files quickly and accurately.</p>
+        <button class="btn" onclick="openSoftware('Bank_File_Builder.html', 'Bank File Builder')">
+          Open Software
+        </button>
+      </div>
+      
+      <!-- Insurance Reconciliation -->
+      <div class="software-card">
+        <h3>📋 Insurance Reconciliation</h3>
+        <p>Reconcile insurance claims and payments with ease.</p>
+        <button class="btn" onclick="openSoftware('Insurance_Reconciliation.html', 'Insurance Reconciliation')">
+          Open Software
+        </button>
+      </div>
     </div>
   </div>
 
@@ -61,114 +105,49 @@
       
       currentUser = data;
       document.getElementById('username').textContent = data.username;
-      document.getElementById('runsRemaining').textContent = data.runs_remaining;
-      document.getElementById('runsTotal').textContent = `of ${data.runs_total} total runs`;
-      
-      const statusEl = document.getElementById('runsStatus');
-      if (data.runs_remaining === 0) {
-        statusEl.innerHTML = '<span class="runs-empty">No runs remaining</span>';
-        statusEl.className = 'runs-empty';
-      } else if (data.runs_remaining <= 5) {
-        statusEl.innerHTML = '<span class="runs-warning">Running low!</span>';
-        statusEl.className = 'runs-warning';
-      } else {
-        statusEl.innerHTML = '<span class="text-green">Active</span>';
-      }
-      
-      loadSoftware();
     }
     
-    async function loadSoftware() {
-      const res = await fetch('/api/software');
-      const files = await res.json();
-      
-      const grid = document.getElementById('softwareGrid');
-      
-      if (files.length === 0) {
-        grid.innerHTML = '<p class="text-muted">No software available yet. Contact your administrator.</p>';
-        return;
-      }
-      
-      // Define software with display names
-      const softwareNames = {
-        'Bank_File_Builder.html': 'Bank File Builder',
-        'Insurance_Reconciliation.html': 'Insurance Reconciliation'
-      };
-      
-      const softwareDescs = {
-        'Bank_File_Builder.html': 'Build bank files from Excel data',
-        'Insurance_Reconciliation.html': 'Reconcile insurance with bank records'
-      };
-      
-      grid.innerHTML = files.map(f => {
-        const name = softwareNames[f] || f.replace('.html', '').replace(/_/g, ' ');
-        const desc = softwareDescs[f] || '';
-        const disabled = currentUser.runs_remaining <= 0 ? 'disabled' : '';
-        
-        return \`
-          <div class="software-card \${disabled}">
-            <h3>\${name}</h3>
-            <p>\${desc}</p>
-            <button class="btn" \${disabled} onclick="openSoftware('\${f}', '\${name}')">
-              \${disabled ? 'No Runs Left' : 'Open Software'}
-            </button>
-          </div>
-        \`;
-      }).join('');
-    }
-    
-    async function openSoftware(filename, name) {
-      if (currentUser.runs_remaining <= 0) return;
-      
-      // Deduct a run first
-      const res = await fetch('/api/use-software', { method: 'POST' });
+    async function loadRuns() {
+      const res = await fetch('/api/stats');
       const data = await res.json();
       
-      if (!data.success) {
-        alert(data.error || 'Failed to use software');
+      // Find current user's stats
+      const usersRes = await fetch('/api/users');
+      const users = await usersRes.json();
+      const user = users.find(u => u.username === currentUser?.username);
+      
+      if (user) {
+        document.getElementById('runsRemaining').textContent = user.runs_remaining;
+        document.getElementById('runsTotal').textContent = `of ${user.runs_total} total`;
+      }
+    }
+    
+    function openSoftware(file, title) {
+      // Check runs
+      const runs = parseInt(document.getElementById('runsRemaining').textContent);
+      if (runs <= 0) {
+        alert('No runs remaining! Please contact the administrator.');
         return;
       }
       
-      // Update display
-      currentUser.runs_remaining = data.runs_remaining;
-      document.getElementById('runsRemaining').textContent = data.runs_remaining;
-      
-      // Reload software grid to update button states
-      loadSoftware();
-      
-      // Open software
-      document.getElementById('modalTitle').textContent = name;
-      document.getElementById('softwareFrame').src = '/software/' + filename;
+      document.getElementById('modalTitle').textContent = title;
+      document.getElementById('softwareFrame').src = '/software/' + file;
       document.getElementById('softwareModal').classList.add('active');
     }
     
     function closeSoftware() {
       document.getElementById('softwareModal').classList.remove('active');
       document.getElementById('softwareFrame').src = '';
-      // Reload user data to reflect updated runs
-      loadUser();
+      // Reload runs after using one
+      loadRuns();
     }
     
     async function logout() {
-      await fetch('/api/logout');
+      await fetch('/api/auth/logout', { method: 'POST' });
       window.location.href = '/login.html';
     }
     
-    // Check if admin and show admin link
-    async function checkAdmin() {
-      const res = await fetch('/api/user');
-      const data = await res.json();
-      if (data.is_admin) {
-        const adminLink = document.createElement('a');
-        adminLink.href = '/admin.html';
-        adminLink.style.cssText = 'color: var(--accent); text-decoration: none; margin-left: 20px;';
-        adminLink.textContent = 'Admin Panel';
-        document.querySelector('.dashboard-header').appendChild(adminLink);
-      }
-    }
-    
-    loadUser();
-    checkAdmin();
+    loadUser().then(() => loadRuns());
   </script>
 </body>
 </html>
