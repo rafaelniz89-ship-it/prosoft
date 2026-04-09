@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - ProSoft</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="auth-box">
+      <div class="logo" style="margin: 0 auto 24px;">📊</div>
+      <h2>Welcome Back</h2>
+      <p>Sign in to access ProSoft</p>
+      
+      <div id="errorMsg" class="error-msg" style="display:none;"></div>
+      
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn" id="submitBtn">Sign In</button>
+      </form>
+      
+      <p class="subtitle">
+        Don't have an account? <a href="/register.html">Get access</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Check URL for error param
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('error') === '1') {
+      errorMsg.textContent = 'Invalid username or password';
+      errorMsg.style.display = 'block';
+    }
+    
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.style.display = 'none';
+      submitBtn.textContent = 'Signing in...';
+      submitBtn.disabled = true;
+      
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+      
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (res.ok) {
+          const result = await res.json();
+          window.location.href = result.redirect || '/dashboard.html';
+        } else {
+          const err = await res.json();
+          errorMsg.textContent = err.error || 'Login failed';
+          errorMsg.style.display = 'block';
+        }
+      } catch (err) {
+        errorMsg.textContent = 'Connection error. Please try again.';
+        errorMsg.style.display = 'block';
+      }
+      
+      submitBtn.textContent = 'Sign In';
+      submitBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>

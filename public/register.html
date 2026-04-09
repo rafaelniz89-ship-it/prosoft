@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get Access - ProSoft</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="auth-box">
+      <div class="logo" style="margin: 0 auto 24px;">📊</div>
+      <h2>Get Access</h2>
+      <p>Contact your administrator for an account</p>
+      
+      <div id="msg" class="error-msg" style="display:none;"></div>
+      
+      <form id="requestForm">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" required placeholder="Choose a username">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" required placeholder="Choose a password">
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" name="confirmPassword" required placeholder="Confirm password">
+        </div>
+        <button type="submit" class="btn" id="submitBtn">Request Access</button>
+      </form>
+      
+      <p class="subtitle">
+        Already have an account? <a href="/login.html">Sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('requestForm');
+    const msg = document.getElementById('msg');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.style.display = 'none';
+      
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+      
+      if (data.password !== data.confirmPassword) {
+        msg.textContent = 'Passwords do not match';
+        msg.style.display = 'block';
+        return;
+      }
+      
+      submitBtn.textContent = 'Sending request...';
+      submitBtn.disabled = true;
+      
+      // Note: Registration is handled by admin, so this goes to a pending state
+      // For demo, we'll show a message
+      msg.textContent = 'Please contact your administrator to create your account. Self-registration is disabled.';
+      msg.style.display = 'block';
+      msg.style.background = 'rgba(59,130,246,0.1)';
+      msg.style.borderColor = 'var(--blue)';
+      msg.style.color = 'var(--blue)';
+      
+      submitBtn.textContent = 'Request Access';
+      submitBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>

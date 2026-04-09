@@ -1,0 +1,18 @@
+{
+  "name": "prosoft",
+  "version": "1.0.0",
+  "description": "ProSoft - SaaS Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "passport": "^0.6.0",
+    "passport-local": "^1.0.0",
+    "bcrypt": "^5.1.1",
+    "pg": "^8.11.3",
+    "express-fileupload": "^1.4.0"
+  }
+}

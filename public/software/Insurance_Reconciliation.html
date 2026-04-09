@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insurance Reconciliation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #141720;
+    --border:   #1e2535;
+    --accent:   #00d4aa;
+    --accent2:  #ff6b35;
+    --blue:     #3b82f6;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --green:    #10b981;
+    --red:      #ef4444;
+    --orange:   #f59e0b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid background ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; gap: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px; margin-bottom: 36px;
+  }
+  .logo {
+    width: 48px; height: 48px;
+    background: linear-gradient(135deg, var(--accent), var(--blue));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+    box-shadow: 0 0 24px rgba(0,212,170,0.3);
+  }
+  h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .subtitle { font-size: 13px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; margin-top: 3px; }
+  .version { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); background: var(--border); padding: 4px 10px; border-radius: 20px; }
+
+  /* ── Drop zones ── */
+  .drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+
+  .drop-zone {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 32px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .drop-zone::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(0,212,170,0.04));
+    pointer-events: none;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(0,212,170,0.05);
+    box-shadow: 0 0 0 1px var(--accent), inset 0 0 40px rgba(0,212,170,0.05);
+  }
+  .drop-zone.loaded { border-color: var(--green); border-style: solid; }
+  .drop-zone.loaded::before { background: linear-gradient(135deg, transparent 60%, rgba(16,185,129,0.06)); }
+
+  .drop-icon { font-size: 32px; margin-bottom: 10px; }
+  .drop-label { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); }
+  .drop-name { font-size: 13px; color: var(--accent); font-family: 'IBM Plex Mono', monospace; margin-top: 8px; min-height: 18px; }
+  .drop-status { font-size: 11px; color: var(--green); margin-top: 4px; min-height: 16px; }
+  input[type=file] { display: none; }
+
+  /* ── Run button ── */
+  .run-wrap { text-align: center; margin: 8px 0 28px; }
+  #runBtn {
+    background: linear-gradient(135deg, var(--accent), #00a88a);
+    color: #000;
+    border: none;
+    padding: 14px 48px;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'IBM Plex Sans', sans-serif;
+    letter-spacing: 0.5px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 24px rgba(0,212,170,0.3);
+  }
+  #runBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,212,170,0.45);
+  }
+  #runBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .fmt-toggle { display:flex; align-items:center; gap:8px; justify-content:center; margin-top:14px; }
+  .fmt-label { font-size:12px; color:var(--muted); }
+  .fmt-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); padding: 6px 14px; border-radius: 8px;
+    font-size: 12px; font-family:'IBM Plex Sans',sans-serif;
+    cursor:pointer; transition:all 0.2s;
+  }
+  .fmt-btn:hover { border-color:var(--accent); color:var(--text); }
+  .fmt-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(0,212,170,0.08); font-weight:600; }
+
+
+  #progressWrap { display: none; margin-bottom: 24px; }
+  .prog-bar-bg { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+  .prog-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--blue)); border-radius: 4px; width: 0%; transition: width 0.4s; }
+  .prog-label { font-size: 12px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; margin-top: 8px; }
+
+  /* ── Stats cards ── */
+  #statsWrap { display: none; }
+  .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 16px;
+    text-align: center;
+    position: relative; overflow: hidden;
+    transition: transform 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  }
+  .stat-card.matched::after { background: var(--green); }
+  .stat-card.mat-unmatch::after { background: var(--red); }
+  .stat-card.bank-unmatch::after { background: var(--orange); }
+  .stat-card.fees::after { background: var(--blue); }
+
+  .stat-num { font-size: 36px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; line-height: 1; }
+  .stat-num.matched { color: var(--green); }
+  .stat-num.mat-unmatch { color: var(--red); }
+  .stat-num.bank-unmatch { color: var(--orange); }
+  .stat-num.fees { color: var(--blue); }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-top: 6px; }
+
+  /* ── Breakdown ── */
+  .breakdown { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+  .badge {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .badge span { color: var(--accent); font-weight: 600; }
+
+  /* ── Download section ── */
+  .dl-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .dl-card.dmv-card { border-color: rgba(59,130,246,0.4); }
+  .dl-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex; align-items: center; gap: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .dl-card:hover {
+    border-color: var(--accent);
+    background: rgba(0,212,170,0.04);
+    transform: translateY(-1px);
+  }
+  .dl-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .dl-icon.green  { background: rgba(16,185,129,0.15); }
+  .dl-icon.red    { background: rgba(239,68,68,0.15); }
+  .dl-icon.orange { background: rgba(245,158,11,0.15); }
+  .dl-icon.blue   { background: rgba(59,130,246,0.15); }
+  .dl-icon.dmv    { background: rgba(99,102,241,0.15); }
+  .dl-info { flex: 1; }
+  .dl-title { font-size: 13px; font-weight: 600; }
+  .dl-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .dl-size { font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--accent); margin-top: 4px; }
+  .dl-arrow { font-size: 18px; color: var(--muted); }
+
+  /* ── Log ── */
+  #log { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-top: 24px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; }
+  .log-ok   { color: var(--green); }
+  .log-warn { color: var(--orange); }
+  .log-err  { color: var(--red); }
+  .log-info { color: var(--muted); }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .drop-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); } /* responsive */
+    .dl-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">⚡</div>
+    <div>
+      <h1>Insurance Reconciliation</h1>
+      <div class="subtitle">bank.xlsx  ×  Matrix.CSV  →  4 Excel reports</div>
+    </div>
+    <div class="version">v2.0</div>
+  </header>
+
+  <!-- Drop zones -->
+  <div class="drop-grid">
+    <div class="drop-zone" id="bankZone" onclick="document.getElementById('bankFile').click()">
+      <div class="drop-icon">🏦</div>
+      <div class="drop-label">Bank File</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">.xlsx · .xls</div>
+      <div class="drop-name" id="bankName">Drop file here or click to browse</div>
+      <div class="drop-status" id="bankStatus"></div>
+      <input type="file" id="bankFile" accept=".xlsx,.xls,.csv">
+    </div>
+    <div class="drop-zone" id="matrixZone" onclick="document.getElementById('matrixFile').click()">
+      <div class="drop-icon">📋</div>
+      <div class="drop-label">Matrix File</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">.csv · Matrix.CSV</div>
+      <div class="drop-name" id="matrixName">Drop file here or click to browse</div>
+      <div class="drop-status" id="matrixStatus"></div>
+      <input type="file" id="matrixFile" accept=".csv,.txt,.xlsx,.xls">
+    </div>
+  </div>
+
+  <!-- Run button + format toggle -->
+  <div class="run-wrap">
+    <button id="runBtn" onclick="runReconciliation()" disabled>Run Reconciliation ▶</button>
+  </div>
+
+  <!-- Progress -->
+  <div id="progressWrap">
+    <div class="prog-bar-bg"><div class="prog-bar" id="progBar"></div></div>
+    <div class="prog-label" id="progLabel">Initializing...</div>
+  </div>
+
+  <!-- Results -->
+  <div id="statsWrap">
+    <div class="stats-grid">
+      <div class="stat-card matched">
+        <div class="stat-num matched" id="sMatched">0</div>
+        <div class="stat-label">✅ Matched</div>
+      </div>
+      <div class="stat-card mat-unmatch">
+        <div class="stat-num mat-unmatch" id="sMatUnm">0</div>
+        <div class="stat-label">❌ Matrix Unmatched</div>
+      </div>
+      <div class="stat-card bank-unmatch">
+        <div class="stat-num bank-unmatch" id="sBankUnm">0</div>
+        <div class="stat-label">⚠️ Bank Unmatched</div>
+      </div>
+      <div class="stat-card fees">
+        <div class="stat-num fees" id="sFees">0</div>
+        <div class="stat-label">💳 Fees + Refunds</div>
+      </div>
+      <div class="stat-card" style="border:1px solid var(--border);">
+        <div class="stat-num" id="sDMV" style="color:#6366f1;">0</div>
+        <div class="stat-label">🚗 DMV Payments</div>
+      </div>
+    </div>
+
+    <!-- Carrier breakdown -->
+    <div class="breakdown" id="breakdown"></div>
+
+    <!-- Download cards -->
+    <div class="dl-grid">
+      <div class="dl-card" onclick="downloadFile('matched')">
+        <div class="dl-icon green">📗</div>
+        <div class="dl-info">
+          <div class="dl-title" id="dlTitle1">matched_transactions.xlsx</div>
+          <div class="dl-desc">Side-by-side BANK (blue) + MATRIX (orange) · green rows</div>
+          <div class="dl-size" id="sz1"></div>
+        </div>
+        <div class="dl-arrow">↓</div>
+      </div>
+      <div class="dl-card" onclick="downloadFile('matrix_unmatched')">
+        <div class="dl-icon red">📕</div>
+        <div class="dl-info">
+          <div class="dl-title" id="dlTitle2">matrix_unmatched.xlsx</div>
+          <div class="dl-desc">In Matrix NOT in Bank · red header</div>
+          <div class="dl-size" id="sz2"></div>
+        </div>
+        <div class="dl-arrow">↓</div>
+      </div>
+      <div class="dl-card" onclick="downloadFile('bank_unmatched')">
+        <div class="dl-icon orange">📙</div>
+        <div class="dl-info">
+          <div class="dl-title" id="dlTitle3">bank_unmatched.xlsx</div>
+          <div class="dl-desc">In Bank NOT in Matrix · orange header</div>
+          <div class="dl-size" id="sz3"></div>
+        </div>
+        <div class="dl-arrow">↓</div>
+      </div>
+      <div class="dl-card" onclick="downloadFile('fees_refunds')">
+        <div class="dl-icon blue">📘</div>
+        <div class="dl-info">
+          <div class="dl-title" id="dlTitle4">fees_and_refunds.xlsx</div>
+          <div class="dl-desc">3 sheets: Matrix Fees · Matrix Refunds · Bank Refunds</div>
+          <div class="dl-size" id="sz4"></div>
+        </div>
+        <div class="dl-arrow">↓</div>
+      </div>
+      <div class="dl-card dmv-card" onclick="downloadFile('dmv')" style="grid-column: 1 / -1;">
+        <div class="dl-icon dmv">🚗</div>
+        <div class="dl-info">
+          <div class="dl-title" id="dlTitle5">dmv_payments.xlsx</div>
+          <div class="dl-desc">DMV / CVR / Motor Vehicle transactions separated from fees</div>
+          <div class="dl-size" id="sz5"></div>
+        </div>
+        <div class="dl-arrow">↓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div id="log"></div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+let bankData = null, matrixData = null;
+let outputs = {};
+
+const DMV_KEYWORDS = [
+  'department of motor vehicles','dmv services agency fee','cvr registration'
+];
+
+// These companies go straight to matrix_unmatched (not fees, not DMV)
+const FORCE_UNMATCHED = [
+  'acceptance','adventure mex','aegis insurance','anchor diamond','anchor general',
+  'blue fire prime','bridger insurance','bristol west','dmv','mapfre',
+  'onward','pacific specialty','qualitas','triton','event insurance','hiscox'
+];
+
+const FEE_COMPANIES = [
+  'new bus broker fee','merchant card fee','endorsement fee',
+  'no payment endo','rollover fee'
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════
+function log(msg, type='info') {
+  const el = document.getElementById('log');
+  el.style.display = 'block';
+  const line = document.createElement('div');
+  line.className = 'log-' + type;
+  line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progBar').style.width = pct + '%';
+  document.getElementById('progLabel').textContent = label;
+}
+
+function clean(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[\x00-\x1F\x7F]/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function parseAmt(v) {
+  const p = parseFloat(String(v||0).replace(/[$,]/g,'').trim());
+  return isNaN(p) ? 0 : Math.round(p*100)/100;
+}
+
+function parseDate(v) {
+  if (!v) return '';
+  if (v instanceof Date) {
+    return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  }
+  const s = String(v).trim();
+  const m1 = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const m3 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (m1) return m1[1];
+  if (m2) return m2[3]+'-'+m2[1].padStart(2,'0')+'-'+m2[2].padStart(2,'0');
+  if (m3) return m3[3]+'-'+m3[1].padStart(2,'0')+'-'+m3[2].padStart(2,'0');
+  return s.substring(0,10);
+}
+
+function cleanName(n) { return String(n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+function cleanPolicy(p){ return String(p||'').toUpperCase().replace(/\s/g,'').replace(/-\d{2}$/,''); }
+
+function fmtBytes(buf) {
+  const b = buf.byteLength || buf.length || 0;
+  return b > 1024 ? (b/1024).toFixed(1)+' KB' : b+' B';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FILE INPUT
+// ═══════════════════════════════════════════════════════════════
+function setupDrop(zoneId, inputId, type) {
+  const zone = document.getElementById(zoneId);
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file, type);
+  });
+  document.getElementById(inputId).addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0], type);
+  });
+}
+
+function handleFile(file, type) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = e.target.result;
+    try {
+      if (type === 'bank') {
+        bankData = parseBankFile(data, file.name);
+        document.getElementById('bankName').textContent = file.name;
+        document.getElementById('bankStatus').textContent = '✓ ' + bankData.length + ' rows loaded';
+        document.getElementById('bankZone').classList.add('loaded');
+        log('Bank file loaded: ' + file.name + ' → ' + bankData.length + ' rows', 'ok');
+      } else {
+        matrixData = parseMatrixFile(data, file.name);
+        document.getElementById('matrixName').textContent = file.name;
+        document.getElementById('matrixStatus').textContent = '✓ ' + matrixData.length + ' rows loaded';
+        document.getElementById('matrixZone').classList.add('loaded');
+        log('Matrix file loaded: ' + file.name + ' → ' + matrixData.length + ' rows', 'ok');
+      }
+      if (bankData && matrixData) document.getElementById('runBtn').disabled = false;
+    } catch(err) {
+      log('Error loading ' + file.name + ': ' + err.message, 'err');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PARSE BANK (xlsx/xls/csv)
+// ═══════════════════════════════════════════════════════════════
+function parseBankFile(arrayBuffer, filename) {
+  const wb = XLSX.read(arrayBuffer, { type:'array', cellDates:true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  // Use header:1 to get arrays - we pick exact columns, skip Extra col
+  const raw = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+  const results = [];
+
+  for (let i = 1; i < raw.length; i++) {
+    const r = raw[i];
+    // Cols: 0=SourceFile 1=Carrier 2=CustomerName 3=PolicyNumber
+    //       4=Amount 5=Date 6=PaymentType 7=Office (8=Status 9=Extra SKIPPED)
+    const sf = clean(r[0]).toLowerCase();
+    if (sf === 'source file' || sf === '') continue;
+    const amount = parseAmt(r[4]);
+    if (amount === 0) continue;
+
+    const policyRaw = clean(r[3]);
+    const custName  = clean(r[2]);
+    results.push({
+      source:'bank',
+      carrier:      clean(r[1]),
+      customerName: custName,
+      cleanedName:  cleanName(custName),
+      policyNumber: policyRaw,
+      policyCore:   cleanPolicy(policyRaw),
+      amount,
+      date:         parseDate(r[5]),
+      paymentType:  clean(r[6]),
+      office:       clean(r[7]),
+      fileName:     clean(r[0]),
+    });
+  }
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PARSE MATRIX (csv with trailing comma)
+// ═══════════════════════════════════════════════════════════════
+function parseMatrixFile(arrayBuffer, filename) {
+  // Try as CSV first
+  const bytes = new Uint8Array(arrayBuffer);
+  const text  = new TextDecoder('utf-8').decode(bytes);
+
+  // Check if it's xlsx
+  if (filename.toLowerCase().endsWith('.xlsx') || filename.toLowerCase().endsWith('.xls')) {
+    const wb = XLSX.read(arrayBuffer, { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { defval:'' });
+    return parseMatrixRows(raw);
+  }
+
+  // Parse CSV
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim());
+  if (lines.length < 2) throw new Error('Matrix file is empty');
+
+  function parseLine(line) {
+    const out=[]; let cur='', inQ=false;
+    for (const ch of line) {
+      if (ch==='"') inQ=!inQ;
+      else if (ch===','&&!inQ){out.push(clean(cur));cur='';}
+      else cur+=ch;
+    }
+    out.push(clean(cur));
+    return out;
+  }
+
+  const results = [];
+  for (let i = 1; i < lines.length; i++) {
+    const v = parseLine(lines[i]);
+    if (v.length < 15) continue;
+    // 0:Office 1:CSR 3:Customer 5:Date 6:Type 7:Policy# 9:Company 11:Receipt 12:Method 15:Total
+    const amount = parseAmt(v[15] || v[14]);
+    if (amount === 0) continue;
+
+    let dateStr = '';
+    const s = String(v[5]||'').trim();
+    const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2})\s/);
+    if (m) dateStr='20'+m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
+    else { const m2=s.match(/^(\d{4}-\d{2}-\d{2})/); dateStr=m2?m2[1]:s.substring(0,10); }
+
+    const policyRaw = clean(v[7]);
+    const company   = clean(v[9]);
+    results.push({
+      source:'matrix',
+      office:clean(v[0]), csr:clean(v[1]),
+      customerName:clean(v[3]),
+      cleanedName:cleanName(v[3]),
+      policyNumber:policyRaw,
+      policyCore:cleanPolicy(policyRaw),
+      date:dateStr, amount, company,
+      companyLower:company.toLowerCase(),
+      method:clean(v[12]), type:clean(v[6]), receipt:clean(v[11]),
+    });
+  }
+  return results;
+}
+
+function parseMatrixRows(rows) {
+  const results = [];
+  for (const row of rows) {
+    const amount = parseAmt(row['Total'] || row['Amount']);
+    if (amount === 0) continue;
+    let dateStr = parseDate(row['Date/Time'] || row['Date'] || '');
+    const m = String(row['Date/Time']||'').match(/^(\d{1,2})-(\d{1,2})-(\d{2})\s/);
+    if (m) dateStr='20'+m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
+    const policyRaw = clean(row['Policy #']||row['Policy'||'']);
+    const company   = clean(row['Company']||'');
+    results.push({
+      source:'matrix',
+      office:clean(row['Office']||''), csr:clean(row['CSR']||''),
+      customerName:clean(row['Customer']||''),
+      cleanedName:cleanName(row['Customer']||''),
+      policyNumber:policyRaw,
+      policyCore:cleanPolicy(policyRaw),
+      date:dateStr, amount, company,
+      companyLower:company.toLowerCase(),
+      method:clean(row['Method']||''), type:clean(row['Type']||''), receipt:clean(row['Receipt']||''),
+    });
+  }
+  return results;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RECONCILIATION
+// ═══════════════════════════════════════════════════════════════
+function reconcile(bank, matrix) {
+  const usedBank = new Set();
+  const matched=[], matUnmatched=[], matFees=[], matRefunds=[], bankUnmatched=[], bankRefunds=[], dmvItems=[];
+
+  for (const mx of matrix) {
+    const ma = mx.amount;
+    if (ma < 0) { matRefunds.push({...mx, category:'matrix_refunds'}); continue; }
+    if (FORCE_UNMATCHED.some(f=>(mx.companyLower||'').includes(f))) { matUnmatched.push({...mx, category:'matrix_unmatched', status:'Matrix Unmatched'}); continue; }
+    if (DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f))) { dmvItems.push({...mx, category:'dmv'}); continue; }
+    if (FEE_COMPANIES.some(f=>(mx.companyLower||'').includes(f))) { matFees.push({...mx, category:'matrix_fees'}); continue; }
+
+    let found = false;
+    for (let j = 0; j < bank.length; j++) {
+      if (usedBank.has(j)) continue;
+      const bk = bank[j];
+      const ba = bk.amount;
+      if (Math.abs(ma-ba) > 1.00) continue;
+
+      const isAspire    = (mx.companyLower||'').includes('aspire');
+      const isInfinity  = (mx.companyLower||'').includes('infinity') ||
+                          (bk.carrier||'').toLowerCase().includes('infinity');
+      const isDairyland = (mx.companyLower||'').includes('dairyland') ||
+                          (bk.carrier||'').toLowerCase().includes('dairyland');
+      const isNatGen    = (mx.companyLower||'').includes('national') ||
+                          (mx.companyLower||'').includes('nat gen') ||
+                          (bk.carrier||'').toLowerCase().includes('national');
+      const amtDiff  = Math.abs(ma - ba);
+      const fuzzy    = amtDiff > 0.01 && amtDiff <= 1.00;
+      let hit = false;
+      let matchLabel = '';
+
+      if (isAspire) {
+        // Aspire: policy number + amount
+        const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
+        if (mp && bp && mp===bp) { hit=true; matchLabel='Aspire Policy+Amount'+(fuzzy?' (~)':''); }
+
+      } else if (isInfinity) {
+        // Infinity: policy number + amount first, fallback name+date
+        const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
+        if (mp && bp && mp===bp) {
+          hit=true; matchLabel='Infinity Policy+Amount'+(fuzzy?' (~)':'');
+        } else {
+          const mn=cleanName(mx.customerName), bn=cleanName(bk.customerName);
+          if (mn && bn && mn===bn && mx.date===bk.date) { hit=true; matchLabel='Infinity Name+Date'+(fuzzy?' (Amt ±$'+amtDiff.toFixed(2)+')':''); }
+        }
+
+      } else if (isDairyland) {
+        // Dairyland: policy number + date — name order flips between files
+        const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
+        if (mp && bp && mp===bp && mx.date===bk.date) {
+          hit=true; matchLabel='Dairyland Policy+Date+Amount'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+        }
+
+      } else if (isNatGen) {
+        // National General: policy number + date — same name-order problem as Dairyland
+        const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
+        if (mp && bp && mp===bp && mx.date===bk.date) {
+          hit=true; matchLabel='NatGen Policy+Date+Amount'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+        }
+
+      } else {
+        // Kemper + all others: policy + date + amount first, fallback name + date + amount
+        const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
+        if (mp && bp && mp===bp && mx.date===bk.date) {
+          hit=true; matchLabel='Policy+Date+Amount'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+        } else {
+          const mn=cleanName(mx.customerName), bn=cleanName(bk.customerName);
+          if (mn && bn && mn===bn && mx.date===bk.date) { hit=true; matchLabel=fuzzy?'Name+Date (±$'+amtDiff.toFixed(2)+')':'Name+Date+Amount'; }
+        }
+      }
+
+      if (hit) {
+        usedBank.add(j);
+        matched.push({
+          category:'matched', status: fuzzy ? 'FUZZY MATCH' : 'MATCHED',
+          matchType: matchLabel,
+          BANK_Carrier:bk.carrier, BANK_CustomerName:bk.customerName,
+          BANK_PolicyNumber:bk.policyNumber, BANK_Amount:ba,
+          BANK_Date:bk.date, BANK_PaymentType:bk.paymentType,
+          BANK_Office:bk.office, BANK_SourceFile:bk.fileName,
+          MATRIX_Office:mx.office, MATRIX_CSR:mx.csr,
+          MATRIX_Customer:mx.customerName, MATRIX_Company:mx.company,
+          MATRIX_PolicyNumber:mx.policyNumber, MATRIX_Amount:ma,
+          MATRIX_Date:mx.date, MATRIX_Method:mx.method,
+          MATRIX_Receipt:mx.receipt, MATRIX_Type:mx.type,
+        });
+        found=true; break;
+      }
+    }
+    if (!found) matUnmatched.push({...mx, category:'matrix_unmatched', status:'Matrix Unmatched'});
+  }
+
+  for (let j=0; j<bank.length; j++) {
+    if (usedBank.has(j)) continue;
+    const bk=bank[j], ba=bk.amount;
+    if (ba<0) bankRefunds.push({...bk, category:'bank_refunds'});
+    else if (ba>0) bankUnmatched.push({...bk, category:'bank_unmatched'});
+  }
+
+  return { matched, matUnmatched, matFees, matRefunds, bankUnmatched, bankRefunds, dmvItems };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BUILD EXCEL FILES
+// ═══════════════════════════════════════════════════════════════
+function styleHeader(ws, nCols, colorArr) {
+  for (let c=0; c<nCols; c++) {
+    const cell = ws[XLSX.utils.encode_cell({r:0,c})];
+    if (!cell) continue;
+    const rgb = colorArr[Math.min(c, colorArr.length-1)];
+    cell.s = { fill:{fgColor:{rgb}}, font:{bold:true,color:{rgb:'FFFFFF'},sz:10}, alignment:{horizontal:'center',wrapText:true} };
+  }
+}
+function styleRows(ws, nRows, nCols, colorA, colorB) {
+  for (let r=1; r<nRows; r++) {
+    const rgb = r%2===1 ? colorA : colorB;
+    for (let c=0; c<nCols; c++) {
+      const ref = XLSX.utils.encode_cell({r,c});
+      if (!ws[ref]) ws[ref]={v:'',t:'s'};
+      ws[ref].s = { fill:{fgColor:{rgb}}, alignment:{horizontal:'left'} };
+    }
+  }
+}
+
+function buildMatchedFile(matched) {
+  const hdr = [
+    'STATUS','MATCH TYPE',
+    'BANK Carrier','BANK Customer Name','BANK Policy #','BANK Amount','BANK Date','BANK Payment Type','BANK Office','BANK Source File',
+    '  ','  ',
+    'MATRIX Office','MATRIX CSR','MATRIX Customer','MATRIX Company','MATRIX Policy #','MATRIX Amount','MATRIX Date','MATRIX Method','MATRIX Receipt'
+  ];
+  const hColors = [
+    '1B5E20','1B5E20',
+    '1565C0','1565C0','1565C0','1565C0','1565C0','1565C0','1565C0','1565C0',
+    '37474F','37474F',
+    'E65100','E65100','E65100','E65100','E65100','E65100','E65100','E65100','E65100'
+  ];
+
+  const rows = [hdr];
+  for (const r of matched) {
+    rows.push([
+      r.status||'MATCHED', r.matchType||'',
+      r.BANK_Carrier||'', r.BANK_CustomerName||'', r.BANK_PolicyNumber||'', r.BANK_Amount||'', r.BANK_Date||'', r.BANK_PaymentType||'', r.BANK_Office||'', r.BANK_SourceFile||'',
+      '','',
+      r.MATRIX_Office||'', r.MATRIX_CSR||'', r.MATRIX_Customer||'', r.MATRIX_Company||'', r.MATRIX_PolicyNumber||'', r.MATRIX_Amount||'', r.MATRIX_Date||'', r.MATRIX_Method||'', r.MATRIX_Receipt||''
+    ]);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:22},{wch:18},{wch:28},{wch:22},{wch:10},{wch:12},{wch:14},{wch:20},{wch:28},{wch:2},{wch:2},{wch:14},{wch:14},{wch:28},{wch:22},{wch:22},{wch:10},{wch:12},{wch:14},{wch:12}];
+  ws['!freeze'] = {xSplit:0, ySplit:1};
+  styleHeader(ws, hdr.length, hColors);
+  styleRows(ws, rows.length, hdr.length, 'E8F5E9','C8E6C9');
+  XLSX.utils.book_append_sheet(wb, ws, 'Matched');
+  return wb;
+}
+
+function buildMatrixUnmatchedFile(items) {
+  const hdr = ['Office','CSR','Customer','Company','Policy #','Amount','Date','Method','Receipt','Type'];
+  const rows = [hdr];
+  for (const r of items) {
+    rows.push([r.office||'',r.csr||'',r.customerName||'',r.company||'',r.policyNumber||'',r.amount||'',r.date||'',r.method||'',r.receipt||'',r.type||'']);
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:28},{wch:22},{wch:22},{wch:10},{wch:12},{wch:14},{wch:10},{wch:8}];
+  ws['!freeze'] = {xSplit:0, ySplit:1};
+  styleHeader(ws, hdr.length, Array(hdr.length).fill('B71C1C'));
+  styleRows(ws, rows.length, hdr.length, 'FFEBEE','FFCDD2');
+  XLSX.utils.book_append_sheet(wb, ws, 'Matrix Unmatched');
+  return wb;
+}
+
+function buildBankUnmatchedFile(items) {
+  const hdr = ['Carrier','Customer Name','Policy #','Amount','Date','Payment Type','Office','Source File'];
+  const rows = [hdr];
+  for (const r of items) {
+    rows.push([r.carrier||'',r.customerName||'',r.policyNumber||'',r.amount||'',r.date||'',r.paymentType||'',r.office||'',r.fileName||'']);
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:18},{wch:28},{wch:22},{wch:10},{wch:12},{wch:14},{wch:20},{wch:28}];
+  ws['!freeze'] = {xSplit:0, ySplit:1};
+  styleHeader(ws, hdr.length, Array(hdr.length).fill('E65100'));
+  styleRows(ws, rows.length, hdr.length, 'FFF3E0','FFE0B2');
+  XLSX.utils.book_append_sheet(wb, ws, 'Bank Unmatched');
+  return wb;
+}
+
+function buildFeesRefundsFile(fees, mRef, bRef) {
+  const wb = XLSX.utils.book_new();
+
+  const r1=[['Office','CSR','Customer','Company','Policy #','Amount','Date','Method','Type']];
+  for(const i of fees) r1.push([i.office||'',i.csr||'',i.customerName||'',i.company||'',i.policyNumber||'',i.amount||'',i.date||'',i.method||'',i.type||'']);
+  const ws1=XLSX.utils.aoa_to_sheet(r1.length>1?r1:[r1[0],['No records']]);
+  ws1['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws1,'Matrix Fees');
+
+  const r2=[['Office','CSR','Customer','Company','Policy #','Amount','Date','Method']];
+  for(const i of mRef) r2.push([i.office||'',i.csr||'',i.customerName||'',i.company||'',i.policyNumber||'',i.amount||'',i.date||'',i.method||'']);
+  const ws2=XLSX.utils.aoa_to_sheet(r2.length>1?r2:[r2[0],['No records']]);
+  ws2['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws2,'Matrix Refunds');
+
+  const r3=[['Carrier','Customer Name','Policy #','Amount','Date','Payment Type','Office']];
+  for(const i of bRef) r3.push([i.carrier||'',i.customerName||'',i.policyNumber||'',i.amount||'',i.date||'',i.paymentType||'',i.office||'']);
+  const ws3=XLSX.utils.aoa_to_sheet(r3.length>1?r3:[r3[0],['No records']]);
+  ws3['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws3,'Bank Refunds');
+
+  return wb;
+}
+
+function buildDMVFile(items) {
+  const hdr = ['Office','CSR','Customer','Company','Policy #','Amount','Date','Method','Receipt','Type'];
+  const rows = [hdr];
+  for (const r of items) {
+    rows.push([r.office||'',r.csr||'',r.customerName||'',r.company||'',r.policyNumber||'',r.amount||'',r.date||'',r.method||'',r.receipt||'',r.type||'']);
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows.length > 1 ? rows : [rows[0], ['No DMV records']]);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:28},{wch:28},{wch:22},{wch:10},{wch:12},{wch:14},{wch:10},{wch:8}];
+  ws['!freeze'] = {xSplit:0, ySplit:1};
+  styleHeader(ws, hdr.length, Array(hdr.length).fill('1565C0'));
+  styleRows(ws, rows.length, hdr.length, 'E3F2FD','BBDEFB');
+  XLSX.utils.book_append_sheet(wb, ws, 'DMV Payments');
+  return wb;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FORMAT TOGGLE
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+//  DOWNLOAD
+// ═══════════════════════════════════════════════════════════════
+function downloadFile(key) {
+  const wb = outputs[key + '_wb'];
+  if (!wb) { log('Run reconciliation first!', 'warn'); return; }
+
+  const nameMap = {
+    matched:          'matched_transactions',
+    matrix_unmatched: 'matrix_unmatched',
+    bank_unmatched:   'bank_unmatched',
+    fees_refunds:     'fees_and_refunds',
+    dmv:              'dmv_payments',
+  };
+
+  const buf  = XLSX.write(wb, { type:'array', bookType:'xlsx', cellStyles:true });
+  const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = nameMap[key] + '.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  log('Downloaded: ' + nameMap[key] + '.xlsx', 'ok');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN RUN
+// ═══════════════════════════════════════════════════════════════
+async function runReconciliation() {
+  if (!bankData || !matrixData) return;
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('statsWrap').style.display = 'none';
+  document.getElementById('log').innerHTML = '';
+
+  await new Promise(r=>setTimeout(r,50));
+
+  try {
+    setProgress(20, 'Running reconciliation logic...');
+    log('Bank rows: ' + bankData.length + ' | Matrix rows: ' + matrixData.length);
+    await new Promise(r=>setTimeout(r,50));
+
+    const res = reconcile(bankData, matrixData);
+
+    setProgress(50, 'Building matched_transactions...');
+    log('Matched: ' + res.matched.length + ' | Mat unmatched: ' + res.matUnmatched.length + ' | Bank unmatched: ' + res.bankUnmatched.length + ' | Fees: ' + res.matFees.length + ' | DMV: ' + res.dmvItems.length + ' | Refunds: ' + (res.matRefunds.length+res.bankRefunds.length), 'ok');
+    await new Promise(r=>setTimeout(r,50));
+
+    outputs.matched_wb          = buildMatchedFile(res.matched);
+    setProgress(65, 'Building matrix_unmatched...');
+    await new Promise(r=>setTimeout(r,30));
+
+    outputs.matrix_unmatched_wb = buildMatrixUnmatchedFile(res.matUnmatched);
+    setProgress(75, 'Building bank_unmatched...');
+    await new Promise(r=>setTimeout(r,30));
+
+    outputs.bank_unmatched_wb   = buildBankUnmatchedFile(res.bankUnmatched);
+    setProgress(88, 'Building fees_and_refunds...');
+    await new Promise(r=>setTimeout(r,30));
+
+    outputs.fees_refunds_wb     = buildFeesRefundsFile(res.matFees, res.matRefunds, res.bankRefunds);
+    outputs.dmv_wb              = buildDMVFile(res.dmvItems);
+    setProgress(100, 'Done! ✅');
+
+    // Update stats
+    document.getElementById('sMatched').textContent  = res.matched.length;
+    document.getElementById('sMatUnm').textContent   = res.matUnmatched.length;
+    document.getElementById('sBankUnm').textContent  = res.bankUnmatched.length;
+    document.getElementById('sFees').textContent     = res.matFees.length + res.matRefunds.length + res.bankRefunds.length;
+    document.getElementById('sDMV').textContent      = res.dmvItems.length;
+
+    // Carrier breakdown
+    const carriers = {};
+    for (const r of res.matched) {
+      const c = r.BANK_Carrier || 'Unknown';
+      carriers[c] = (carriers[c]||0)+1;
+    }
+    const fuzzyCount = res.matched.filter(r=>r.status==='FUZZY MATCH').length;
+    const bd = document.getElementById('breakdown');
+    let badgeHtml = Object.entries(carriers).sort((a,b)=>b[1]-a[1])
+      .map(([c,n])=>`<div class="badge">${c}: <span>${n}</span></div>`).join('');
+    if (fuzzyCount > 0) badgeHtml += `<div class="badge" style="border-color:var(--orange);color:var(--orange);">⚠️ Fuzzy Matches (±$1): <span>${fuzzyCount}</span></div>`;
+    bd.innerHTML = badgeHtml;
+
+    // File sizes (measure as xlsx for display)
+    const s = wb => XLSX.write(wb, {type:'array', bookType:'xlsx', cellStyles:true});
+    document.getElementById('sz1').textContent = fmtBytes(s(outputs.matched_wb));
+    document.getElementById('sz2').textContent = fmtBytes(s(outputs.matrix_unmatched_wb));
+    document.getElementById('sz3').textContent = fmtBytes(s(outputs.bank_unmatched_wb));
+    document.getElementById('sz4').textContent = fmtBytes(s(outputs.fees_refunds_wb));
+    document.getElementById('sz5').textContent = fmtBytes(s(outputs.dmv_wb));
+
+    document.getElementById('statsWrap').style.display = 'block';
+    log('All 4 files ready to download!', 'ok');
+
+  } catch(err) {
+    log('ERROR: ' + err.message, 'err');
+    setProgress(0, 'Error - see log below');
+  }
+
+  document.getElementById('runBtn').disabled = false;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+setupDrop('bankZone', 'bankFile', 'bank');
+setupDrop('matrixZone', 'matrixFile', 'matrix');
+</script>
+</body>
+</html>
+HTMLEOF

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ProSoft</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">📊</div>
+      <div>
+        <h1>ProSoft</h1>
+        <div class="subtitle">Software Platform</div>
+      </div>
+    </header>
+
+    <div class="dashboard-header">
+      <h2>Welcome, <span id="username">...</span></h2>
+      <button class="btn btn-secondary" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="runs-display">
+      <div class="runs-number" id="runsRemaining">--</div>
+      <div>
+        <div class="runs-label">Runs Remaining</div>
+        <div class="runs-label" id="runsTotal" style="color: var(--muted); font-size: 12px;"></div>
+      </div>
+      <div id="runsStatus" style="margin-left: auto;"></div>
+    </div>
+
+    <h3 style="margin-bottom: 20px;">Available Software</h3>
+    <div class="software-grid" id="softwareGrid">
+      <!-- Software cards loaded dynamically -->
+    </div>
+  </div>
+
+  <!-- Software Modal -->
+  <div class="modal" id="softwareModal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%; height: 90vh;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 id="modalTitle">Software</h2>
+        <button onclick="closeSoftware()" style="background: none; border: none; color: var(--text); font-size: 24px; cursor: pointer;">&times;</button>
+      </div>
+      <iframe id="softwareFrame" src="" style="width: 100%; height: calc(100% - 60px); border: none; border-radius: 12px; background: white;"></iframe>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+    
+    async function loadUser() {
+      const res = await fetch('/api/user');
+      const data = await res.json();
+      
+      if (!data.loggedIn) {
+        window.location.href = '/login.html';
+        return;
+      }
+      
+      currentUser = data;
+      document.getElementById('username').textContent = data.username;
+      document.getElementById('runsRemaining').textContent = data.runs_remaining;
+      document.getElementById('runsTotal').textContent = `of ${data.runs_total} total runs`;
+      
+      const statusEl = document.getElementById('runsStatus');
+      if (data.runs_remaining === 0) {
+        statusEl.innerHTML = '<span class="runs-empty">No runs remaining</span>';
+        statusEl.className = 'runs-empty';
+      } else if (data.runs_remaining <= 5) {
+        statusEl.innerHTML = '<span class="runs-warning">Running low!</span>';
+        statusEl.className = 'runs-warning';
+      } else {
+        statusEl.innerHTML = '<span class="text-green">Active</span>';
+      }
+      
+      loadSoftware();
+    }
+    
+    async function loadSoftware() {
+      const res = await fetch('/api/software');
+      const files = await res.json();
+      
+      const grid = document.getElementById('softwareGrid');
+      
+      if (files.length === 0) {
+        grid.innerHTML = '<p class="text-muted">No software available yet. Contact your administrator.</p>';
+        return;
+      }
+      
+      // Define software with display names
+      const softwareNames = {
+        'Bank_File_Builder.html': 'Bank File Builder',
+        'Insurance_Reconciliation.html': 'Insurance Reconciliation'
+      };
+      
+      const softwareDescs = {
+        'Bank_File_Builder.html': 'Build bank files from Excel data',
+        'Insurance_Reconciliation.html': 'Reconcile insurance with bank records'
+      };
+      
+      grid.innerHTML = files.map(f => {
+        const name = softwareNames[f] || f.replace('.html', '').replace(/_/g, ' ');
+        const desc = softwareDescs[f] || '';
+        const disabled = currentUser.runs_remaining <= 0 ? 'disabled' : '';
+        
+        return \`
+          <div class="software-card \${disabled}">
+            <h3>\${name}</h3>
+            <p>\${desc}</p>
+            <button class="btn" \${disabled} onclick="openSoftware('\${f}', '\${name}')">
+              \${disabled ? 'No Runs Left' : 'Open Software'}
+            </button>
+          </div>
+        \`;
+      }).join('');
+    }
+    
+    async function openSoftware(filename, name) {
+      if (currentUser.runs_remaining <= 0) return;
+      
+      // Deduct a run first
+      const res = await fetch('/api/use-software', { method: 'POST' });
+      const data = await res.json();
+      
+      if (!data.success) {
+        alert(data.error || 'Failed to use software');
+        return;
+      }
+      
+      // Update display
+      currentUser.runs_remaining = data.runs_remaining;
+      document.getElementById('runsRemaining').textContent = data.runs_remaining;
+      
+      // Reload software grid to update button states
+      loadSoftware();
+      
+      // Open software
+      document.getElementById('modalTitle').textContent = name;
+      document.getElementById('softwareFrame').src = '/software/' + filename;
+      document.getElementById('softwareModal').classList.add('active');
+    }
+    
+    function closeSoftware() {
+      document.getElementById('softwareModal').classList.remove('active');
+      document.getElementById('softwareFrame').src = '';
+      // Reload user data to reflect updated runs
+      loadUser();
+    }
+    
+    async function logout() {
+      await fetch('/api/logout');
+      window.location.href = '/login.html';
+    }
+    
+    // Check if admin and show admin link
+    async function checkAdmin() {
+      const res = await fetch('/api/user');
+      const data = await res.json();
+      if (data.is_admin) {
+        const adminLink = document.createElement('a');
+        adminLink.href = '/admin.html';
+        adminLink.style.cssText = 'color: var(--accent); text-decoration: none; margin-left: 20px;';
+        adminLink.textContent = 'Admin Panel';
+        document.querySelector('.dashboard-header').appendChild(adminLink);
+      }
+    }
+    
+    loadUser();
+    checkAdmin();
+  </script>
+</body>
+</html>
