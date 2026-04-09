@@ -44,7 +44,8 @@
         <h1>ProSoft</h1>
         <div class="subtitle">Software Platform</div>
       </div>
-      <button class="btn logout-admin" onclick="logout()" style="margin-left: auto;">Logout</button>
+      <button id="adminBtn" class="btn" onclick="window.location.href='/admin.html'" style="display: none; background: var(--blue);">⚙️ Admin View</button>
+      <button class="btn logout-admin" onclick="logout()">Logout</button>
     </header>
 
     <div class="dashboard-header">
@@ -105,6 +106,11 @@
       
       currentUser = data;
       document.getElementById('username').textContent = data.username;
+      
+      // Show admin button if user is admin
+      if (data.is_admin) {
+        document.getElementById('adminBtn').style.display = 'block';
+      }
     }
     
     async function loadRuns() {
