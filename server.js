@@ -180,12 +180,25 @@ app.post('/api/upload-software', requireAdmin, (req, res) => {
   });
 });
 
-// Get software list
-app.get('/api/software', requireAuth, (req, res) => {
+// Get software list (admin sees all, returns objects with size)
+app.get('/api/software', requireAdmin, (req, res) => {
   const softwareDir = path.join(__dirname, 'public', 'software');
   if (!fs.existsSync(softwareDir)) return res.json([]);
-  const files = fs.readdirSync(softwareDir).filter(f => f.endsWith('.html'));
+  const files = fs.readdirSync(softwareDir)
+    .filter(f => f.endsWith('.html'))
+    .map(f => {
+      const stats = fs.statSync(path.join(softwareDir, f));
+      return { name: f, size: (stats.size / 1024).toFixed(1) + ' KB' };
+    });
   res.json(files);
+});
+
+// Delete software
+app.delete('/api/software/:filename', requireAdmin, (req, res) => {
+  const filePath = path.join(__dirname, 'public', 'software', req.params.filename);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+  fs.unlinkSync(filePath);
+  res.json({ success: true });
 });
 
 // Get usage stats (admin)
