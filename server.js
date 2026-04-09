@@ -101,7 +101,7 @@ app.post('/api/users', requireAdmin, async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 6);
     await pool.query(
       'INSERT INTO users (username, password, runs_remaining, runs_total) VALUES ($1, $2, $3, $3)',
       [username, hash, runs || 20]
