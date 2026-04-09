@@ -63,6 +63,9 @@
     table { width: 100%; }
     th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
     th { color: var(--accent); font-weight: 600; }
+    .text-red { color: var(--red); }
+    .text-green { color: var(--green); }
+    .text-orange { color: var(--orange); }
   </style>
 </head>
 <body>
@@ -210,19 +213,21 @@
         return;
       }
       
-      tbody.innerHTML = users.map(u => \`
-        <tr>
-          <td>\${u.username} \${u.is_admin ? '<span style="color: var(--accent); font-size: 12px;">(Admin)</span>' : ''}</td>
-          <td>\${u.runs_total}</td>
-          <td>\${u.runs_total - u.runs_remaining}</td>
-          <td class="\${u.runs_remaining === 0 ? 'text-red' : u.runs_remaining <= 5 ? 'text-orange' : 'text-green'}">\${u.runs_remaining}</td>
-          <td>\${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}</td>
-          <td class="user-actions">
-            <button class="btn btn-runs btn-sm" onclick="editRuns(\${u.id}, '\${u.username}', \${u.runs_remaining})">✏️ Edit Runs</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteUser(\${u.id}, '\${u.username}')">🗑️ Delete</button>
-          </td>
-        </tr>
-      \`).join('');
+      tbody.innerHTML = users.map(u => {
+        const runsClass = u.runs_remaining === 0 ? 'text-red' : u.runs_remaining <= 5 ? 'text-orange' : 'text-green';
+        const adminBadge = u.is_admin ? '<span style="color: var(--accent); font-size: 12px;">(Admin)</span>' : '';
+        return '<tr>' +
+          '<td>' + u.username + ' ' + adminBadge + '</td>' +
+          '<td>' + u.runs_total + '</td>' +
+          '<td>' + (u.runs_total - u.runs_remaining) + '</td>' +
+          '<td class="' + runsClass + '">' + u.runs_remaining + '</td>' +
+          '<td>' + (u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never') + '</td>' +
+          '<td class="user-actions">' +
+            '<button class="btn btn-runs btn-sm" onclick="editRuns(' + u.id + ', \'' + u.username + '\', ' + u.runs_remaining + ')">✏️ Edit Runs</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteUser(' + u.id + ', \'' + u.username + '\')">🗑️ Delete</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
     }
 
     // Add user form
