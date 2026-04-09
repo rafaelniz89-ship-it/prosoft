@@ -66,6 +66,9 @@
     .text-red { color: var(--red); }
     .text-green { color: var(--green); }
     .text-orange { color: var(--orange); }
+    #softwareList table { width: 100%; border-collapse: collapse; }
+    #softwareList th, #softwareList td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    #softwareList th { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -145,14 +148,20 @@
 
     <!-- Upload Software -->
     <div class="admin-card" style="margin-top: 24px;">
-      <h3>📤 Upload Software</h3>
+      <h3>📤 Upload New Software</h3>
       <form id="uploadForm" style="display: flex; gap: 12px; align-items: end;">
         <div style="flex: 1;">
-          <input type="file" name="file" accept=".html" required style="width: 100%;">
+          <input type="file" name="file" accept=".html" required style="width: 100%; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
         </div>
         <button type="submit" class="btn" style="width: auto; padding: 12px 24px;">Upload</button>
       </form>
       <div id="uploadStatus" style="margin-top: 12px;"></div>
+    </div>
+
+    <!-- Software Management -->
+    <div class="admin-card" style="margin-top: 24px;">
+      <h3>🗂️ Uploaded Software</h3>
+      <div id="softwareList" style="color: var(--muted);">Loading...</div>
     </div>
   </div>
 
@@ -345,6 +354,54 @@
     }
 
     checkAdmin();
+    
+    // Load software list
+    async function loadSoftware() {
+      try {
+        const res = await fetch('/api/software');
+        const files = await res.json();
+        const container = document.getElementById('softwareList');
+        
+        if (!files || files.length === 0) {
+          container.innerHTML = '<p>No software uploaded yet.</p>';
+          return;
+        }
+        
+        container.innerHTML = '<table style="width:100%;">' +
+          '<thead><tr><th>File Name</th><th>Size</th><th>Actions</th></tr></thead>' +
+          '<tbody>' +
+          files.map(f => '<tr>' +
+            '<td>' + f.name + '</td>' +
+            '<td>' + f.size + '</td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="deleteSoftware(\'' + f.name + '\')">🗑️ Delete</button></td>' +
+          '</tr>').join('') +
+          '</tbody></table>';
+      } catch (err) {
+        document.getElementById('softwareList').innerHTML = '<p style="color: var(--red);">Error loading software</p>';
+      }
+    }
+    
+    async function deleteSoftware(filename) {
+      if (!confirm('Delete ' + filename + '? This cannot be undone.')) return;
+      
+      try {
+        const res = await fetch('/api/software/' + encodeURIComponent(filename), {
+          method: 'DELETE'
+        });
+        
+        if (res.ok) {
+          alert('✓ Deleted: ' + filename);
+          loadSoftware();
+        } else {
+          alert('✗ Failed to delete');
+        }
+      } catch (err) {
+        alert('✗ Error: ' + err.message);
+      }
+    }
+    
+    // Load software on page load
+    loadSoftware();
   </script>
 </body>
 </html>
