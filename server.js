@@ -204,15 +204,6 @@ app.get('/api/stats', requireAdmin, async (req, res) => {
 });
 
 
-// TEMP: Reset admin password
-app.post('/api/reset-admin', async (req, res) => {
-  const bcrypt = require('bcrypt');
-  const password = '104898Niz$';
-  const hash = await bcrypt.hash(password, 10);
-  await pool.query('UPDATE users SET password = $1 WHERE username = $2', [hash, 'admin']);
-  res.json({ success: true, message: 'Admin password reset!' });
-});
-
 // Initialize database
 async function initDB() {
   await pool.query(`
