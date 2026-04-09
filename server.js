@@ -10,6 +10,9 @@ const fs = require('fs');
 
 const app = express();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// DEBUG: Check DATABASE_URL
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'SET (value hidden)' : 'NOT SET');
+
 
 // Middleware
 app.use(express.json());
