@@ -19,6 +19,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload());
 app.use(express.static('public'));
+
+// Root redirect to login
+app.get('/', (req, res) => res.redirect('/login.html'));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'prosoft-secret-key-2024',
   resave: false,
