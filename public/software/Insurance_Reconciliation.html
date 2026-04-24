@@ -2,10 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="format-detection" content="telephone=no">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Insurance Reconciliation</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -229,48 +225,7 @@
     .stats-grid { grid-template-columns: repeat(2, 1fr); } /* responsive */
     .dl-grid { grid-template-columns: 1fr; }
   }
-
-/* Mobile Touch Optimization */
-@media (max-width: 768px) {
-  .container { padding: 10px; }
-  #bigDrop { min-height: 200px; padding: 20px; font-size: 14px; }
-  .drop-main { font-size: 16px; }
-  .dl-card { padding: 16px; margin: 10px 0; }
-  #runBtn { width: 100%; padding: 16px; font-size: 16px; }
-  table { font-size: 12px; }
-  th, td { padding: 8px; }
-  .chips { flex-wrap: wrap; }
-  .chip { padding: 8px 12px; font-size: 12px; }
-}
-
-/* Touch improvements */
-button, .dl-card, #bigDrop {
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-#runBtn {
-  min-height: 48px;
-  cursor: pointer;
-}
 </style>
-
-<!-- Anti-theft protection -->
-<script>
-// Disable right-click (desktop)
-document.addEventListener('contextmenu', e => e.preventDefault());
-
-// Disable theft shortcuts (desktop)
-document.addEventListener('keydown', function(e) {
-  if (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'a' || e.key === 'c')) {
-    e.preventDefault();
-  }
-});
-
-// Disable drag/drop
-document.addEventListener('dragstart', e => e.preventDefault());
-document.addEventListener('drop', e => e.preventDefault());
-</script>
 </head>
 <body>
 <div class="wrapper">
@@ -282,7 +237,7 @@ document.addEventListener('drop', e => e.preventDefault());
       <h1>Insurance Reconciliation</h1>
       <div class="subtitle">bank.xlsx  ×  Matrix.CSV  →  4 Excel reports</div>
     </div>
-    <div class="version">v2.0</div>
+    <div class="version">v2.3</div>
   </header>
 
   <!-- Drop zones -->
@@ -335,10 +290,6 @@ document.addEventListener('drop', e => e.preventDefault());
         <div class="stat-num fees" id="sFees">0</div>
         <div class="stat-label">💳 Fees + Refunds</div>
       </div>
-      <div class="stat-card" style="border:1px solid var(--border);">
-        <div class="stat-num" id="sDMV" style="color:#6366f1;">0</div>
-        <div class="stat-label">🚗 DMV Payments</div>
-      </div>
     </div>
 
     <!-- Carrier breakdown -->
@@ -359,7 +310,7 @@ document.addEventListener('drop', e => e.preventDefault());
         <div class="dl-icon red">📕</div>
         <div class="dl-info">
           <div class="dl-title" id="dlTitle2">matrix_unmatched.xlsx</div>
-          <div class="dl-desc">In Matrix NOT in Bank · red header</div>
+          <div class="dl-desc">In Matrix NOT in Bank (includes DMV fees & payments) · red header</div>
           <div class="dl-size" id="sz2"></div>
         </div>
         <div class="dl-arrow">↓</div>
@@ -379,15 +330,6 @@ document.addEventListener('drop', e => e.preventDefault());
           <div class="dl-title" id="dlTitle4">fees_and_refunds.xlsx</div>
           <div class="dl-desc">3 sheets: Matrix Fees · Matrix Refunds · Bank Refunds</div>
           <div class="dl-size" id="sz4"></div>
-        </div>
-        <div class="dl-arrow">↓</div>
-      </div>
-      <div class="dl-card dmv-card" onclick="downloadFile('dmv')" style="grid-column: 1 / -1;">
-        <div class="dl-icon dmv">🚗</div>
-        <div class="dl-info">
-          <div class="dl-title" id="dlTitle5">dmv_payments.xlsx</div>
-          <div class="dl-desc">DMV / CVR / Motor Vehicle transactions separated from fees</div>
-          <div class="dl-size" id="sz5"></div>
         </div>
         <div class="dl-arrow">↓</div>
       </div>
@@ -466,6 +408,16 @@ function parseDate(v) {
 }
 
 function cleanName(n) { return String(n||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+// Token-sorted name for matching when word order is unreliable (e.g. "Smith, John" vs "John Smith")
+// Used by DMV matching since Vitu PDFs and Matrix often list names in different orders.
+function sortedName(n) {
+  return String(n||'').toLowerCase()
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(function(t){return t.length>=2;})  // drop single letters / initials that flip around
+    .sort()
+    .join('');
+}
 function cleanPolicy(p){ return String(p||'').toUpperCase().replace(/\s/g,'').replace(/-\d{2}$/,''); }
 
 function fmtBytes(buf) {
@@ -577,41 +529,62 @@ function parseMatrixFile(arrayBuffer, filename) {
 
   function parseLine(line) {
     const out=[]; let cur='', inQ=false;
-    for (const ch of line) {
-      if (ch==='"') inQ=!inQ;
-      else if (ch===','&&!inQ){out.push(clean(cur));cur='';}
+    for (let i=0; i<line.length; i++) {
+      const ch = line[i];
+      if (ch==='"' && inQ && line[i+1]==='"') { cur+='"'; i++; }
+      else if (ch==='"') inQ=!inQ;
+      else if (ch===',' && !inQ) { out.push(clean(cur)); cur=''; }
       else cur+=ch;
     }
     out.push(clean(cur));
     return out;
   }
 
+  // Build column-name → index map from header row so we don't depend on fixed positions
+  const hdrCols = parseLine(lines[0]);
+  const col = {};
+  hdrCols.forEach((h, i) => { col[h.toLowerCase().replace(/[^a-z0-9]/g,'')] = i; });
+  const idx = (aliases, fallback) => {
+    for (const a of aliases) { const k = a.toLowerCase().replace(/[^a-z0-9]/g,''); if (col[k] !== undefined) return col[k]; }
+    return fallback;
+  };
+  const iOffice   = idx(['Office'], 0);
+  const iCSR      = idx(['CSR'], 1);
+  const iCustomer = idx(['Customer'], 3);
+  const iDate     = idx(['Date/Time','Date'], 5);
+  const iType     = idx(['Type'], 6);
+  const iPolicy   = idx(['Policy #','Policy'], 7);
+  const iCompany  = idx(['Company'], 9);
+  const iReceipt  = idx(['Receipt'], 11);
+  const iMethod   = idx(['Method'], 12);
+  const iTotal    = idx(['Total'], 15);
+  const iAmount   = idx(['Amount'], 14);
+
   const results = [];
   for (let i = 1; i < lines.length; i++) {
     const v = parseLine(lines[i]);
-    if (v.length < 15) continue;
-    // 0:Office 1:CSR 3:Customer 5:Date 6:Type 7:Policy# 9:Company 11:Receipt 12:Method 15:Total
-    const amount = parseAmt(v[15] || v[14]);
+    if (v.length < Math.max(iTotal, iAmount) + 1) continue;
+    const amount = parseAmt(v[iTotal] || v[iAmount]);
     if (amount === 0) continue;
 
     let dateStr = '';
-    const s = String(v[5]||'').trim();
+    const s = String(v[iDate]||'').trim();
     const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{2})\s/);
     if (m) dateStr='20'+m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
     else { const m2=s.match(/^(\d{4}-\d{2}-\d{2})/); dateStr=m2?m2[1]:s.substring(0,10); }
 
-    const policyRaw = clean(v[7]);
-    const company   = clean(v[9]);
+    const policyRaw = clean(v[iPolicy]);
+    const company   = clean(v[iCompany]);
     results.push({
       source:'matrix',
-      office:clean(v[0]), csr:clean(v[1]),
-      customerName:clean(v[3]),
-      cleanedName:cleanName(v[3]),
+      office:clean(v[iOffice]), csr:clean(v[iCSR]),
+      customerName:clean(v[iCustomer]),
+      cleanedName:cleanName(v[iCustomer]),
       policyNumber:policyRaw,
       policyCore:cleanPolicy(policyRaw),
       date:dateStr, amount, company,
       companyLower:company.toLowerCase(),
-      method:clean(v[12]), type:clean(v[6]), receipt:clean(v[11]),
+      method:clean(v[iMethod]), type:clean(v[iType]), receipt:clean(v[iReceipt]),
     });
   }
   return results;
@@ -625,7 +598,7 @@ function parseMatrixRows(rows) {
     let dateStr = parseDate(row['Date/Time'] || row['Date'] || '');
     const m = String(row['Date/Time']||'').match(/^(\d{1,2})-(\d{1,2})-(\d{2})\s/);
     if (m) dateStr='20'+m[3]+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');
-    const policyRaw = clean(row['Policy #']||row['Policy'||'']);
+    const policyRaw = clean(row['Policy #']||row['Policy']||'');
     const company   = clean(row['Company']||'');
     results.push({
       source:'matrix',
@@ -647,17 +620,78 @@ function parseMatrixRows(rows) {
 // ═══════════════════════════════════════════════════════════════
 function reconcile(bank, matrix) {
   const usedBank = new Set();
-  const matched=[], matUnmatched=[], matFees=[], matRefunds=[], bankUnmatched=[], bankRefunds=[], dmvItems=[];
+  const matched=[], matUnmatched=[], matFees=[], matRefunds=[], bankUnmatched=[], bankRefunds=[];
+
+  // ── Build bank indexes for fast candidate lookup ──────────────
+  // Instead of scanning every bank row for every matrix row (O(N*M)),
+  // we bucket bank rows by policyCore and by cleanedName, so each
+  // matrix row only checks a handful of candidates.
+  const byPolicy     = new Map();  // policyCore -> [bank index, ...]
+  const byName       = new Map();  // cleanedName -> [bank index, ...]
+  const bySortedName = new Map();  // sortedName (tokens sorted) -> [bank index, ...] — for DMV where word order varies
+  for (let j = 0; j < bank.length; j++) {
+    const bk = bank[j];
+    if (bk.policyCore) {
+      if (!byPolicy.has(bk.policyCore)) byPolicy.set(bk.policyCore, []);
+      byPolicy.get(bk.policyCore).push(j);
+    }
+    if (bk.cleanedName) {
+      if (!byName.has(bk.cleanedName)) byName.set(bk.cleanedName, []);
+      byName.get(bk.cleanedName).push(j);
+    }
+    const sn = sortedName(bk.customerName);
+    if (sn) {
+      if (!bySortedName.has(sn)) bySortedName.set(sn, []);
+      bySortedName.get(sn).push(j);
+    }
+  }
+  function daysApart(a, b) {
+    if (!a || !b) return 999;
+    const da = new Date(a), db = new Date(b);
+    if (isNaN(da) || isNaN(db)) return 999;
+    return Math.abs(da - db) / 86400000;
+  }
+
+  // Determine if we have any DMV rows in the bank file to match against.
+  // If YES: matrix DMV rows should try to match first, falling through to unmatched only if no match found.
+  // If NO: matrix DMV rows go straight to unmatched like before (preserves old behavior).
+  const hasDMVBank = bank.some(b => (b.carrier||'').toLowerCase()==='dmv');
 
   for (const mx of matrix) {
     const ma = mx.amount;
     if (ma < 0) { matRefunds.push({...mx, category:'matrix_refunds'}); continue; }
     if (FORCE_UNMATCHED.some(f=>(mx.companyLower||'').includes(f))) { matUnmatched.push({...mx, category:'matrix_unmatched', status:'Matrix Unmatched'}); continue; }
-    if (DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f))) { dmvItems.push({...mx, category:'dmv'}); continue; }
+    // DMV fees and payments:
+    //  - If a DMV carrier file was uploaded, try to match first (fall through to the matcher)
+    //  - Otherwise route directly to matrix_unmatched (flagged so they're easy to filter)
+    if (DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f))) {
+      if (!hasDMVBank) {
+        matUnmatched.push({...mx, category:'matrix_unmatched', status:'DMV'});
+        continue;
+      }
+      // else: fall through to matching logic — isDMV branch will handle it
+    }
     if (FEE_COMPANIES.some(f=>(mx.companyLower||'').includes(f))) { matFees.push({...mx, category:'matrix_fees'}); continue; }
 
+    // Build candidate list from indexes (small subset of bank)
+    const candidates = new Set();
+    if (mx.policyCore && byPolicy.has(mx.policyCore)) {
+      byPolicy.get(mx.policyCore).forEach(j => candidates.add(j));
+    }
+    if (mx.cleanedName && byName.has(mx.cleanedName)) {
+      byName.get(mx.cleanedName).forEach(j => candidates.add(j));
+    }
+    // DMV rows have unreliable word order — also search the sorted-name index
+    const mxIsDmv = DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f));
+    if (mxIsDmv) {
+      const mxSorted = sortedName(mx.customerName);
+      if (mxSorted && bySortedName.has(mxSorted)) {
+        bySortedName.get(mxSorted).forEach(j => candidates.add(j));
+      }
+    }
+
     let found = false;
-    for (let j = 0; j < bank.length; j++) {
+    for (const j of candidates) {
       if (usedBank.has(j)) continue;
       const bk = bank[j];
       const ba = bk.amount;
@@ -671,15 +705,32 @@ function reconcile(bank, matrix) {
       const isNatGen    = (mx.companyLower||'').includes('national') ||
                           (mx.companyLower||'').includes('nat gen') ||
                           (bk.carrier||'').toLowerCase().includes('national');
+      const isDMV       = (bk.carrier||'').toLowerCase()==='dmv' ||
+                          DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f));
       const amtDiff  = Math.abs(ma - ba);
       const fuzzy    = amtDiff > 0.01 && amtDiff <= 1.00;
       let hit = false;
       let matchLabel = '';
 
-      if (isAspire) {
-        // Aspire: policy number + amount
+      if (isDMV) {
+        // DMV: no policy number available. Match by name + exact date.
+        // Names can appear in different word order between Vitu PDF ("Chial Vasquez, Antonio")
+        // and Agency Matrix ("Vasquez, Antonio Chial"), so compare BOTH cleaned and token-sorted forms.
+        // Fuzzy amount tolerance still applies via the outer ±$1 filter above.
+        const mn =cleanName (mx.customerName), bn =cleanName (bk.customerName);
+        const msn=sortedName(mx.customerName), bsn=sortedName(bk.customerName);
+        const nameMatch = (mn && bn && mn===bn) || (msn && bsn && msn===bsn);
+        if (nameMatch && mx.date===bk.date) {
+          hit=true; matchLabel='DMV Name+Date'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+        }
+
+      } else if (isAspire) {
+        // Aspire: policy number + amount, with ±7 day date sanity check
+        // to avoid cross-matching same policy across months
         const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
-        if (mp && bp && mp===bp) { hit=true; matchLabel='Aspire Policy+Amount'+(fuzzy?' (~)':''); }
+        if (mp && bp && mp===bp && daysApart(mx.date, bk.date) <= 7) {
+          hit=true; matchLabel='Aspire Policy+Amount'+(fuzzy?' (~)':'');
+        }
 
       } else if (isInfinity) {
         // Infinity: policy number + amount first, fallback name+date
@@ -734,7 +785,10 @@ function reconcile(bank, matrix) {
         found=true; break;
       }
     }
-    if (!found) matUnmatched.push({...mx, category:'matrix_unmatched', status:'Matrix Unmatched'});
+    if (!found) {
+      const isDmvRow = DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f));
+      matUnmatched.push({...mx, category:'matrix_unmatched', status: isDmvRow ? 'DMV' : 'Matrix Unmatched'});
+    }
   }
 
   for (let j=0; j<bank.length; j++) {
@@ -744,7 +798,7 @@ function reconcile(bank, matrix) {
     else if (ba>0) bankUnmatched.push({...bk, category:'bank_unmatched'});
   }
 
-  return { matched, matUnmatched, matFees, matRefunds, bankUnmatched, bankRefunds, dmvItems };
+  return { matched, matUnmatched, matFees, matRefunds, bankUnmatched, bankRefunds };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -882,6 +936,10 @@ function buildDMVFile(items) {
 // ═══════════════════════════════════════════════════════════════
 //  DOWNLOAD
 // ═══════════════════════════════════════════════════════════════
+function todayStamp(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 function downloadFile(key) {
   const wb = outputs[key + '_wb'];
   if (!wb) { log('Run reconciliation first!', 'warn'); return; }
@@ -891,20 +949,20 @@ function downloadFile(key) {
     matrix_unmatched: 'matrix_unmatched',
     bank_unmatched:   'bank_unmatched',
     fees_refunds:     'fees_and_refunds',
-    dmv:              'dmv_payments',
   };
 
+  const fname = nameMap[key] + '_' + todayStamp() + '.xlsx';
   const buf  = XLSX.write(wb, { type:'array', bookType:'xlsx', cellStyles:true });
   const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url;
-  a.download = nameMap[key] + '.xlsx';
+  a.download = fname;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  log('Downloaded: ' + nameMap[key] + '.xlsx', 'ok');
+  log('Downloaded: ' + fname, 'ok');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -927,7 +985,7 @@ async function runReconciliation() {
     const res = reconcile(bankData, matrixData);
 
     setProgress(50, 'Building matched_transactions...');
-    log('Matched: ' + res.matched.length + ' | Mat unmatched: ' + res.matUnmatched.length + ' | Bank unmatched: ' + res.bankUnmatched.length + ' | Fees: ' + res.matFees.length + ' | DMV: ' + res.dmvItems.length + ' | Refunds: ' + (res.matRefunds.length+res.bankRefunds.length), 'ok');
+    log('Matched: ' + res.matched.length + ' | Mat unmatched (incl. DMV): ' + res.matUnmatched.length + ' | Bank unmatched: ' + res.bankUnmatched.length + ' | Fees: ' + res.matFees.length + ' | Refunds: ' + (res.matRefunds.length+res.bankRefunds.length), 'ok');
     await new Promise(r=>setTimeout(r,50));
 
     outputs.matched_wb          = buildMatchedFile(res.matched);
@@ -943,7 +1001,6 @@ async function runReconciliation() {
     await new Promise(r=>setTimeout(r,30));
 
     outputs.fees_refunds_wb     = buildFeesRefundsFile(res.matFees, res.matRefunds, res.bankRefunds);
-    outputs.dmv_wb              = buildDMVFile(res.dmvItems);
     setProgress(100, 'Done! ✅');
 
     // Update stats
@@ -951,7 +1008,6 @@ async function runReconciliation() {
     document.getElementById('sMatUnm').textContent   = res.matUnmatched.length;
     document.getElementById('sBankUnm').textContent  = res.bankUnmatched.length;
     document.getElementById('sFees').textContent     = res.matFees.length + res.matRefunds.length + res.bankRefunds.length;
-    document.getElementById('sDMV').textContent      = res.dmvItems.length;
 
     // Carrier breakdown
     const carriers = {};
@@ -966,13 +1022,19 @@ async function runReconciliation() {
     if (fuzzyCount > 0) badgeHtml += `<div class="badge" style="border-color:var(--orange);color:var(--orange);">⚠️ Fuzzy Matches (±$1): <span>${fuzzyCount}</span></div>`;
     bd.innerHTML = badgeHtml;
 
+    // Dated filenames in the download cards
+    const stamp = todayStamp();
+    document.getElementById('dlTitle1').textContent = 'matched_transactions_'+stamp+'.xlsx';
+    document.getElementById('dlTitle2').textContent = 'matrix_unmatched_'+stamp+'.xlsx';
+    document.getElementById('dlTitle3').textContent = 'bank_unmatched_'+stamp+'.xlsx';
+    document.getElementById('dlTitle4').textContent = 'fees_and_refunds_'+stamp+'.xlsx';
+
     // File sizes (measure as xlsx for display)
     const s = wb => XLSX.write(wb, {type:'array', bookType:'xlsx', cellStyles:true});
     document.getElementById('sz1').textContent = fmtBytes(s(outputs.matched_wb));
     document.getElementById('sz2').textContent = fmtBytes(s(outputs.matrix_unmatched_wb));
     document.getElementById('sz3').textContent = fmtBytes(s(outputs.bank_unmatched_wb));
     document.getElementById('sz4').textContent = fmtBytes(s(outputs.fees_refunds_wb));
-    document.getElementById('sz5').textContent = fmtBytes(s(outputs.dmv_wb));
 
     document.getElementById('statsWrap').style.display = 'block';
     log('All 4 files ready to download!', 'ok');
