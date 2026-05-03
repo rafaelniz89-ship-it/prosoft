@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - ProSoft</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo" style="background:linear-gradient(135deg,#667eea,#764ba2);">⚙️</div>
+      <div>
+        <h1>Admin Panel</h1>
+        <div class="subtitle">ProSoft Management</div>
+      </div>
+      <div style="display:flex; gap:12px; margin-left:auto;">
+        <button class="btn btn-secondary" onclick="window.location.href='/dashboard.html'" style="width:auto; padding:10px 20px; font-size:14px;">👤 Customer View</button>
+        <button class="btn" onclick="logout()" style="width:auto; padding:10px 20px; font-size:14px; background:var(--surface); color:var(--red); border:1px solid var(--border);">Sign Out</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="admin-grid">
+      <div class="admin-card">
+        <h3>📊 Total Users</h3>
+        <div class="stat-big" id="statUsers">--</div>
+      </div>
+      <div class="admin-card">
+        <h3>⚡ Total Runs Used</h3>
+        <div class="stat-big" id="statRunsUsed">--</div>
+      </div>
+      <div class="admin-card">
+        <h3>🎯 Runs Remaining</h3>
+        <div class="stat-big" id="statRunsRemaining">--</div>
+      </div>
+      <div class="admin-card">
+        <h3>👥 Active Users</h3>
+        <div class="stat-big" id="statActive">--</div>
+      </div>
+    </div>
+
+    <!-- Add User -->
+    <div class="admin-card" style="margin-bottom:28px;">
+      <h3 style="font-size:16px; margin-bottom:16px; font-weight:700; color:var(--text);">➕ Add New User</h3>
+      <form id="addUserForm" class="form-grid">
+        <div>
+          <label style="display:block; margin-bottom:6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Username</label>
+          <input type="text" name="username" placeholder="Username" required>
+        </div>
+        <div>
+          <label style="display:block; margin-bottom:6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Password</label>
+          <input type="password" name="password" placeholder="Password" required>
+        </div>
+        <div>
+          <label style="display:block; margin-bottom:6px; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Runs</label>
+          <input type="number" name="runs" value="20" min="0" required>
+        </div>
+        <button type="submit" class="btn" style="width:auto;">Add User</button>
+      </form>
+      <div id="addStatus" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- User Management -->
+    <div class="admin-card">
+      <h3 style="font-size:16px; margin-bottom:16px; font-weight:700; color:var(--text);">👥 User Management</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Runs Total</th>
+            <th>Runs Used</th>
+            <th>Runs Left</th>
+            <th>Last Login</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersTable">
+          <tr><td colspan="6" style="text-align:center; color:var(--muted);">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Upload Software -->
+    <div class="admin-card" style="margin-top:28px;">
+      <h3 style="font-size:16px; margin-bottom:16px; font-weight:700; color:var(--text);">📤 Upload New Software</h3>
+      <form id="uploadForm" style="display:flex; gap:12px; align-items:end;">
+        <div style="flex:1;">
+          <input type="file" name="file" accept=".html" required style="width:100%; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px;">
+        </div>
+        <button type="submit" class="btn" style="width:auto; padding:12px 24px;">Upload</button>
+      </form>
+      <div id="uploadStatus" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- Software Management -->
+    <div class="admin-card" style="margin-top:28px;">
+      <h3 style="font-size:16px; margin-bottom:16px; font-weight:700; color:var(--text);">🗂️ Uploaded Software</h3>
+      <div id="softwareList" style="color:var(--muted);">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Edit Runs Modal -->
+  <div class="modal" id="editRunsModal">
+    <div class="modal-content">
+      <h2>Edit User Runs</h2>
+      <form id="editRunsForm">
+        <input type="hidden" id="editUserId">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="editUsername" disabled>
+        </div>
+        <div class="form-group">
+          <label>Add Runs (adds to current remaining)</label>
+          <input type="number" id="editAddRuns" min="0" placeholder="e.g. 10" required>
+        </div>
+        <div class="form-group">
+          <label>Set Runs Remaining (override)</label>
+          <input type="number" id="editRunsInput" min="0" placeholder="Leave blank to use Add Runs">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+          <button type="submit" class="btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    async function checkAdmin() {
+      const res = await fetch('/api/user');
+      const data = await res.json();
+
+      if (!data.loggedIn || !data.is_admin) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      loadStats();
+      loadUsers();
+    }
+
+    async function loadStats() {
+      const res = await fetch('/api/stats');
+      const stats = await res.json();
+
+      document.getElementById('statUsers').textContent = stats.total_users || 0;
+      document.getElementById('statRunsUsed').textContent = stats.total_runs_used || 0;
+      document.getElementById('statRunsRemaining').textContent = stats.total_runs_remaining || 0;
+      document.getElementById('statActive').textContent = stats.total_users || 0;
+    }
+
+    async function loadUsers() {
+      const res = await fetch('/api/users');
+      const users = await res.json();
+
+      const tbody = document.getElementById('usersTable');
+
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--muted);">No users yet</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(u => {
+        const runsClass = u.runs_remaining === 0 ? 'text-red' : u.runs_remaining <= 5 ? 'text-orange' : 'text-green';
+        const adminBadge = u.is_admin ? '<span style="color:var(--accent); font-size:11px; font-weight:600; margin-left:6px;">Admin</span>' : '';
+        return '<tr>' +
+          '<td><strong>' + u.username + '</strong> ' + adminBadge + '</td>' +
+          '<td>' + u.runs_total + '</td>' +
+          '<td>' + (u.runs_total - u.runs_remaining) + '</td>' +
+          '<td class="' + runsClass + '">' + u.runs_remaining + '</td>' +
+          '<td style="color:var(--muted);">' + (u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never') + '</td>' +
+          '<td class="actions">' +
+            '<button class="btn btn-runs btn-sm" onclick="editRuns(' + u.id + ', \'' + u.username + '\', ' + u.runs_remaining + ')">✏️ Edit</button>' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteUser(' + u.id + ', \'' + u.username + '\')">🗑️</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+      const statusEl = document.getElementById('addStatus');
+
+      statusEl.textContent = 'Adding…';
+      statusEl.style.color = 'var(--muted)';
+
+      try {
+        const res = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+          statusEl.textContent = '✓ User added successfully!';
+          statusEl.style.color = 'var(--green)';
+          e.target.reset();
+          e.target.querySelector('input[name="runs"]').value = 20;
+          loadUsers();
+          loadStats();
+        } else {
+          const err = await res.json();
+          statusEl.textContent = '✗ ' + (err.error || 'Failed to add user');
+          statusEl.style.color = 'var(--red)';
+        }
+      } catch (err) {
+        statusEl.textContent = '✗ Connection error';
+        statusEl.style.color = 'var(--red)';
+      }
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const statusEl = document.getElementById('uploadStatus');
+
+      statusEl.textContent = 'Uploading…';
+      statusEl.style.color = 'var(--muted)';
+
+      try {
+        const res = await fetch('/api/upload-software', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          statusEl.textContent = '✓ Uploaded: ' + data.filename;
+          statusEl.style.color = 'var(--green)';
+          e.target.reset();
+        } else {
+          const err = await res.json();
+          statusEl.textContent = '✗ ' + (err.error || 'Upload failed');
+          statusEl.style.color = 'var(--red)';
+        }
+      } catch (err) {
+        statusEl.textContent = '✗ Connection error';
+        statusEl.style.color = 'var(--red)';
+      }
+    });
+
+    function editRuns(id, username, currentRuns) {
+      document.getElementById('editUserId').value = id;
+      document.getElementById('editUsername').value = username;
+      document.getElementById('editRunsInput').value = currentRuns;
+      document.getElementById('editRunsModal').classList.add('active');
+    }
+
+    function closeEditModal() {
+      document.getElementById('editRunsModal').classList.remove('active');
+    }
+
+    document.getElementById('editRunsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('editUserId').value;
+      const addRuns = document.getElementById('editAddRuns').value;
+      const setRuns = document.getElementById('editRunsInput').value;
+
+      let payload = {};
+      if (setRuns !== '') {
+        // Override mode: set exact runs remaining and update total
+        payload.runs = parseInt(setRuns);
+        payload.runs_total = parseInt(setRuns);
+      } else if (addRuns !== '') {
+        // Add mode: add runs to both remaining and total
+        const user = await (await fetch('/api/users')).json();
+        const u = user.find(x => x.id == id);
+        if (u) {
+          payload.runs = u.runs_remaining + parseInt(addRuns);
+          payload.runs_total = u.runs_total + parseInt(addRuns);
+        }
+      }
+
+      const res = await fetch('/api/users/' + id + '/runs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        closeEditModal();
+        loadUsers();
+        loadStats();
+      } else {
+        alert('Failed to update runs');
+      }
+    });
+
+    async function deleteUser(id, username) {
+      if (!confirm('Are you sure you want to delete user "' + username + '"?')) return;
+
+      const res = await fetch('/api/users/' + id, { method: 'DELETE' });
+      if (res.ok) {
+        loadUsers();
+        loadStats();
+      } else {
+        alert('Failed to delete user');
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    }
+
+    checkAdmin();
+
+    async function loadSoftware() {
+      try {
+        const res = await fetch('/api/software');
+        const files = await res.json();
+        const container = document.getElementById('softwareList');
+
+        if (!files || files.length === 0) {
+          container.innerHTML = '<p>No software uploaded yet.</p>';
+          return;
+        }
+
+        container.innerHTML = '<table style="width:100%;">' +
+          '<thead><tr><th>File Name</th><th>Size</th><th>Actions</th></tr></thead>' +
+          '<tbody>' +
+          files.map(f => '<tr>' +
+            '<td>' + f.name + '</td>' +
+            '<td>' + f.size + '</td>' +
+            '<td><button class="btn btn-danger btn-sm" onclick="deleteSoftware(\'' + f.name + '\')">🗑️ Delete</button></td>' +
+          '</tr>').join('') +
+          '</tbody></table>';
+      } catch (err) {
+        document.getElementById('softwareList').innerHTML = '<p style="color:var(--red);">Error loading software</p>';
+      }
+    }
+
+    async function deleteSoftware(filename) {
+      if (!confirm('Delete ' + filename + '? This cannot be undone.')) return;
+
+      try {
+        const res = await fetch('/api/software/' + encodeURIComponent(filename), {
+          method: 'DELETE'
+        });
+
+        if (res.ok) {
+          alert('✓ Deleted: ' + filename);
+          loadSoftware();
+        } else {
+          alert('✗ Failed to delete');
+        }
+      } catch (err) {
+        alert('✗ Error: ' + err.message);
+      }
+    }
+
+    loadSoftware();
+  </script>
+</body>
+</html>

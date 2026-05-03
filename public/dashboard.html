@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - ProSoft</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">📊</div>
+      <div>
+        <h1>ProSoft</h1>
+        <div class="subtitle">Software Platform</div>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:12px;">
+        <button id="adminBtn" class="btn btn-secondary" onclick="window.location.href='/admin.html'" style="display:none; width:auto; padding:10px 20px; font-size:14px;">⚙️ Admin</button>
+        <button class="btn" onclick="logout()" style="width:auto; padding:10px 20px; font-size:14px; background:var(--surface); color:var(--red); border:1px solid var(--border);">Sign Out</button>
+      </div>
+    </header>
+
+    <div class="dashboard-header">
+      <h2>Welcome, <span id="username">…</span></h2>
+      <div class="runs-display">
+        <div class="runs-number" id="runsRemaining">--</div>
+        <div>
+          <div class="runs-label">Runs Remaining</div>
+          <div class="runs-label" id="runsTotal" style="color:var(--muted2); font-size:12px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom:20px; font-size:20px; font-weight:700; letter-spacing:-0.3px;">Available Software</h3>
+    <div class="software-grid">
+      <!-- Bank File Builder -->
+      <div class="software-card">
+        <div class="icon-circle" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">🏦</div>
+        <h3>Bank File Builder</h3>
+        <p>Generate bank reconciliation files quickly and accurately.</p>
+        <button class="btn" onclick="openSoftware('Bank_File_Builder.html', 'Bank File Builder')">
+          Open
+        </button>
+      </div>
+
+      <!-- Insurance Reconciliation -->
+      <div class="software-card">
+        <div class="icon-circle" style="background:linear-gradient(135deg,#43e97b,#38f9d7);">📋</div>
+        <h3>Insurance Reconciliation</h3>
+        <p>Reconcile insurance claims and payments with ease.</p>
+        <button class="btn" onclick="openSoftware('Insurance_Reconciliation.html', 'Insurance Reconciliation')">
+          Open
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Software Modal -->
+  <div class="modal" id="softwareModal">
+    <div class="modal-content" style="max-width:1200px; width:95%; height:90vh;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 id="modalTitle" style="margin:0;">Software</h2>
+        <button onclick="closeSoftware()" style="background:none; border:none; color:var(--muted); font-size:28px; cursor:pointer; line-height:1;">&times;</button>
+      </div>
+      <iframe id="softwareFrame" src="" style="width:100%; height:calc(100% - 60px); border:none; border-radius:var(--radius-md); background:white;"></iframe>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    async function loadUser() {
+      const res = await fetch('/api/user');
+      const data = await res.json();
+
+      if (!data.loggedIn) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      currentUser = data;
+      document.getElementById('username').textContent = data.username;
+
+      if (data.is_admin) {
+        document.getElementById('adminBtn').style.display = 'block';
+      }
+    }
+
+    async function loadRuns() {
+      try {
+        const res = await fetch('/api/my-stats');
+        const data = await res.json();
+        document.getElementById('runsRemaining').textContent = data.runs_remaining;
+        document.getElementById('runsTotal').textContent = `of ${data.runs_total} total`;
+      } catch (err) {
+        document.getElementById('runsRemaining').textContent = '?';
+      }
+    }
+
+    async function openSoftware(file, title) {
+      const runs = parseInt(document.getElementById('runsRemaining').textContent);
+      if (runs <= 0) {
+        alert('No runs remaining! Contact the administrator to get more runs.');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/use-software', { method: 'POST' });
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (res.status === 403) {
+            alert('Your account has no runs remaining. Contact the administrator to get more runs.');
+            document.getElementById('runsRemaining').textContent = '0';
+            return;
+          }
+          alert('Error: ' + (data.error || 'Failed to start software'));
+          return;
+        }
+
+        document.getElementById('runsRemaining').textContent = data.runs_remaining;
+        document.getElementById('modalTitle').textContent = title + ' (' + data.runs_remaining + ' runs left)';
+        document.getElementById('softwareFrame').src = '/software/' + file;
+        document.getElementById('softwareModal').classList.add('active');
+      } catch (err) {
+        alert('Connection error. Please try again.');
+      }
+    }
+
+    function closeSoftware() {
+      document.getElementById('softwareModal').classList.remove('active');
+      document.getElementById('softwareFrame').src = '';
+      loadRuns();
+      // If runs hit 0, reload to show locked state
+      const runs = parseInt(document.getElementById('runsRemaining').textContent);
+      if (runs <= 0) {
+        loadUser();
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login.html';
+    }
+
+    loadUser().then(() => loadRuns());
+  </script>
+</body>
+</html>

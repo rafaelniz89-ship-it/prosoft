@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProSoft - Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="auth-box">
+      <div class="logo" style="margin: 0 auto 28px;">📊</div>
+      <h2>Welcome</h2>
+      <p>Sign in to access ProSoft</p>
+
+      <div class="role-selector">
+        <button type="button" id="clienteBtn" class="role-btn active" onclick="setRole('cliente')">👤 Cliente</button>
+        <button type="button" id="adminBtn" class="role-btn" onclick="setRole('admin')">👑 Administrador</button>
+      </div>
+
+      <div id="errorMsg" class="error-msg" style="display:none;"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" required placeholder="Enter username">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" name="password" required placeholder="Enter password">
+        </div>
+        <button type="submit" class="btn" id="submitBtn">Sign In</button>
+      </form>
+
+      <p class="subtitle" id="registerLink">
+        No account? <a href="/register.html">Request Access</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    let selectedRole = 'cliente';
+
+    function setRole(role) {
+      selectedRole = role;
+      document.getElementById('clienteBtn').classList.toggle('active', role === 'cliente');
+      document.getElementById('adminBtn').classList.toggle('active', role === 'admin');
+    }
+
+    const form = document.getElementById('loginForm');
+    const msg = document.getElementById('errorMsg');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.style.display = 'none';
+
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+      data.role = selectedRole;
+
+      submitBtn.textContent = 'Signing in…';
+      submitBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        if (res.ok) {
+          if (result.is_admin) {
+            window.location.href = '/admin.html';
+          } else {
+            window.location.href = '/dashboard.html';
+          }
+        } else {
+          msg.textContent = result.error || 'Invalid credentials';
+          msg.style.display = 'block';
+          submitBtn.textContent = 'Sign In';
+          submitBtn.disabled = false;
+        }
+      } catch (err) {
+        msg.textContent = 'Connection error';
+        msg.style.display = 'block';
+        submitBtn.textContent = 'Sign In';
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
