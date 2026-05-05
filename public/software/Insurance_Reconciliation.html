@@ -237,7 +237,7 @@
       <h1>Insurance Reconciliation</h1>
       <div class="subtitle">bank.xlsx  ×  Matrix.CSV  →  4 Excel reports</div>
     </div>
-    <div class="version">v2.3</div>
+    <div class="version">v4.0</div>
   </header>
 
   <!-- Drop zones -->
@@ -349,15 +349,21 @@ let bankData = null, matrixData = null;
 let outputs = {};
 
 const DMV_KEYWORDS = [
-  'department of motor vehicles','dmv services agency fee','cvr registration'
+  'department of motor vehicles','dmv services agency fee','cvr registration',
+  'dmv services','dmv ','dmv-','dmv,'  // catch matrix rows that just say "DMV" with various punctuation
 ];
 
 // These companies go straight to matrix_unmatched (not fees, not DMV)
+// EXCEPTION: if a corresponding bank/carrier file IS uploaded, allow matching first.
+// 'anchor general', 'anchor diamond', and 'dmv' now have carrier file support, so they
+// flow through routing logic conditionally rather than being unconditionally forced.
 const FORCE_UNMATCHED = [
-  'acceptance','adventure mex','aegis insurance','anchor diamond','anchor general',
-  'blue fire prime','bridger insurance','bristol west','dmv','mapfre',
+  'acceptance','adventure mex','aegis insurance',
+  'blue fire prime','bridger insurance','bristol west','mapfre',
   'onward','pacific specialty','qualitas','triton','event insurance','hiscox'
 ];
+// Anchor + DMV carriers we now support — these are matched against bank rows when files are uploaded
+const CONDITIONAL_FORCE_UNMATCHED = ['anchor general','anchor diamond','anchor'];
 
 const FEE_COMPANIES = [
   'new bus broker fee','merchant card fee','endorsement fee',
@@ -652,15 +658,23 @@ function reconcile(bank, matrix) {
     return Math.abs(da - db) / 86400000;
   }
 
-  // Determine if we have any DMV rows in the bank file to match against.
-  // If YES: matrix DMV rows should try to match first, falling through to unmatched only if no match found.
-  // If NO: matrix DMV rows go straight to unmatched like before (preserves old behavior).
-  const hasDMVBank = bank.some(b => (b.carrier||'').toLowerCase()==='dmv');
+  // Determine which carriers we have bank rows for. Matrix rows that match these
+  // carriers are allowed through to the matching logic instead of being force-unmatched.
+  const hasDMVBank    = bank.some(b => (b.carrier||'').toLowerCase()==='dmv');
+  const hasAnchorBank = bank.some(b => (b.carrier||'').toLowerCase()==='anchor');
 
   for (const mx of matrix) {
     const ma = mx.amount;
     if (ma < 0) { matRefunds.push({...mx, category:'matrix_refunds'}); continue; }
     if (FORCE_UNMATCHED.some(f=>(mx.companyLower||'').includes(f))) { matUnmatched.push({...mx, category:'matrix_unmatched', status:'Matrix Unmatched'}); continue; }
+    // Anchor matrix rows: route to unmatched only if no Anchor carrier file was uploaded
+    if (CONDITIONAL_FORCE_UNMATCHED.some(f=>(mx.companyLower||'').includes(f))) {
+      if (!hasAnchorBank) {
+        matUnmatched.push({...mx, category:'matrix_unmatched', status:'Matrix Unmatched'});
+        continue;
+      }
+      // else: fall through to matching logic
+    }
     // DMV fees and payments:
     //  - If a DMV carrier file was uploaded, try to match first (fall through to the matcher)
     //  - Otherwise route directly to matrix_unmatched (flagged so they're easy to filter)
@@ -697,7 +711,8 @@ function reconcile(bank, matrix) {
       const ba = bk.amount;
       if (Math.abs(ma-ba) > 1.00) continue;
 
-      const isAspire    = (mx.companyLower||'').includes('aspire');
+      const isAspire    = (mx.companyLower||'').includes('aspire') ||
+                          (bk.carrier||'').toLowerCase().includes('aspire');
       const isInfinity  = (mx.companyLower||'').includes('infinity') ||
                           (bk.carrier||'').toLowerCase().includes('infinity');
       const isDairyland = (mx.companyLower||'').includes('dairyland') ||
@@ -705,6 +720,8 @@ function reconcile(bank, matrix) {
       const isNatGen    = (mx.companyLower||'').includes('national') ||
                           (mx.companyLower||'').includes('nat gen') ||
                           (bk.carrier||'').toLowerCase().includes('national');
+      const isAnchor    = (mx.companyLower||'').includes('anchor') ||
+                          (bk.carrier||'').toLowerCase()==='anchor';
       const isDMV       = (bk.carrier||'').toLowerCase()==='dmv' ||
                           DMV_KEYWORDS.some(f=>(mx.companyLower||'').includes(f));
       const amtDiff  = Math.abs(ma - ba);
@@ -754,6 +771,20 @@ function reconcile(bank, matrix) {
         const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
         if (mp && bp && mp===bp && mx.date===bk.date) {
           hit=true; matchLabel='NatGen Policy+Date+Amount'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+        }
+
+      } else if (isAnchor) {
+        // Anchor: has good policy numbers (e.g. AMC0000193990). Match by policy + date + amount,
+        // fall back to name + date + amount. No date sanity check needed since Anchor reports
+        // weekly with clean per-customer entries.
+        const mp=cleanPolicy(mx.policyNumber), bp=cleanPolicy(bk.policyNumber);
+        if (mp && bp && mp===bp && mx.date===bk.date) {
+          hit=true; matchLabel='Anchor Policy+Date+Amount'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+        } else {
+          const mn=cleanName(mx.customerName), bn=cleanName(bk.customerName);
+          if (mn && bn && mn===bn && mx.date===bk.date) {
+            hit=true; matchLabel='Anchor Name+Date'+(fuzzy?' (±$'+amtDiff.toFixed(2)+')':'');
+          }
         }
 
       } else {
