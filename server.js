@@ -267,6 +267,14 @@ async function initDB() {
 }
 
 const PORT = process.env.PORT || 3000;
+
+// Ensure software directory exists on startup
+const softwareDir = path.join(__dirname, 'public', 'software');
+if (!fs.existsSync(softwareDir)) {
+  fs.mkdirSync(softwareDir, { recursive: true });
+  console.log('Created software directory');
+}
+
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`ProSoft running on port \${PORT}`);
